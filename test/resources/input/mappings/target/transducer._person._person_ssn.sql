@@ -1,0 +1,2 @@
+SELECT $S0.ssn
+FROM $S0
