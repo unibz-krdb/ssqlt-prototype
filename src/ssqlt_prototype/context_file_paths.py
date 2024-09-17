@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from .context_paths import ContextPaths
 
 @dataclass
-class ContextFiles:
+class ContextFilePaths:
     source_create: str
     target_creates: list[str]
     source_constraints: list[str]
