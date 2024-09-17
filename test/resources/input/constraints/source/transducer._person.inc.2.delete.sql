@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION transducer.check_person_delete_inc2_fn()
+CREATE OR REPLACE FUNCTION transducer._person_inc_2_delete_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
 

@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION transducer.check_person_mvd_fn()
+CREATE OR REPLACE FUNCTION transducer._person_mvd_1_insert_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
    IF EXISTS (SELECT DISTINCT r1.ssn, r1.phone, r2.manager, r2.title, r2.city, r2.country, r2.mayor

@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION transducer.check_person_cfd_fn()
+CREATE OR REPLACE FUNCTION transducer._person_cfd_1_insert_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
    IF EXISTS (SELECT *
