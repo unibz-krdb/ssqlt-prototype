@@ -1,5 +1,6 @@
 import os
 from fixtures import resource_dir as resource_dir, input_dir as input_dir
+from string import Template
 
 from ssqlt_prototype.mapping import Mapping
 
@@ -10,4 +11,4 @@ def test_from_file(input_dir):
     assert mapping.source_tables == ["_person"]
     assert mapping.target_table == "_city"
     with open(file_path, "r") as f:
-        assert mapping.sql_template == f.read().strip()
+        assert mapping.sql_template.substitute({"S0": "S0"}) == Template(f.read().strip()).substitute({"S0": "S0"})
