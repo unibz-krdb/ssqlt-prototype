@@ -12,4 +12,4 @@ def test_from_file(input_dir):
     assert constraint.index == 1
     assert constraint.insert_delete == InsertDelete.INSERT
     with open(file_path, "r") as f:
-        assert constraint.sql == f.read().strip()
+        assert constraint.generate_function() == f.read().strip()
