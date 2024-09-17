@@ -27,4 +27,21 @@ class Constraint:
         insert_delete = InsertDelete(tokens[4])
         with open(file_path, "r") as f:
             sql = f.read().strip()
+        sql = sql[sql.index("$$"):]
         return cls(schema, table, type_, index, insert_delete, sql)
+
+    def _function_name(self) -> str:
+        return f"{self.table}_{self.type_}_{self.index}_{self.insert_delete.value}_fn"
+
+    def _trigger_name(self) -> str:
+        return f"{self.table}_{self.type_}_{self.index}_{self.insert_delete.value}_trigger"
+
+    def generate_function(self) -> str:
+        return f"""CREATE OR REPLACE FUNCTION {self.schema}.{self._function_name()}()
+RETURNS TRIGGER LANGUAGE PLPGSQL AS {self.sql}"""
+
+    def generate_trigger(self) -> str:
+        return f"""CREATE TRIGGER {self.schema}.{self._trigger_name()}
+BEFORE {self.insert_delete.name} ON {self.schema}.{self.table}
+FOR EACH ROW
+EXECUTE FUNCTION {self.schema}.{self._function_name()}();"""
