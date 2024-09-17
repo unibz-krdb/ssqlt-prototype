@@ -11,6 +11,8 @@ def test_from_file(input_dir):
     assert mapping.source_tables == ["_person"]
     assert mapping.target_table == "_city"
     with open(file_path, "r") as f:
-        subsistuted = Template(f.read().strip()).substitute({"S0": "_person"})
+        text = f.read().strip()
+        subsistuted = Template(text).substitute({"S0": "_person"})
+        subsistuted_new = Template(text).substitute({"S0": "NEW"})
     assert mapping.sql_template.substitute({"S0": "_person"}) == subsistuted
-    assert mapping.sql() == subsistuted
+    assert mapping.sql(["NEW"]) == subsistuted_new
