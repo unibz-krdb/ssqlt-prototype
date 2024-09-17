@@ -1,0 +1,3 @@
+SELECT ssn,city
+FROM _person
+WHERE MANAGER IS NULL
