@@ -1,7 +1,7 @@
 import os
 from fixtures import resource_dir as resource_dir, input_dir as input_dir
 
-from ssqlt_prototype.constraint import Constraint
+from ssqlt_prototype.constraint import Constraint, InsertDelete
 
 def test_from_file(input_dir):
     file_path = os.path.join(input_dir, "constraints", "source", "transducer._person.cfd.1.insert.sql")
@@ -10,6 +10,6 @@ def test_from_file(input_dir):
     assert constraint.table == "_person"
     assert constraint.type_ == "cfd"
     assert constraint.index == 1
-    assert constraint.stage == "insert"
+    assert constraint.insert_delete == InsertDelete.INSERT
     with open(file_path, "r") as f:
         assert constraint.sql == f.read().strip()
