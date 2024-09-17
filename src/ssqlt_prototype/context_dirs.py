@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class ContextPaths:
+class ContextDirs:
     create_source_path: str
     create_target_path: str
     mappings_source_path: str

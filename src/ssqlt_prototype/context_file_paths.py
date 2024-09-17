@@ -1,6 +1,6 @@
 import os
 from dataclasses import dataclass
-from .context_paths import ContextPaths
+from .context_dirs import ContextDirs
 
 @dataclass
 class ContextFilePaths:
@@ -11,7 +11,7 @@ class ContextFilePaths:
     target_to_source_mapping: str
     source_to_target_mappings: list[str]
 
-    def __init__(self, context_paths: ContextPaths) -> None:
+    def __init__(self, context_paths: ContextDirs) -> None:
         # Get source_create file
         files = os.listdir(context_paths.create_source_path)
         if len(files) == 0:
@@ -51,5 +51,5 @@ class ContextFilePaths:
 
     @classmethod
     def from_dir(cls, path: str):
-        context_paths = ContextPaths.from_dir(path)
+        context_paths = ContextDirs.from_dir(path)
         return cls(context_paths)
