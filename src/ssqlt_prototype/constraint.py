@@ -1,7 +1,11 @@
 from dataclasses import dataclass
 import os
 from typing import Self
+from enum import Enum
 
+class InsertDelete(Enum):
+    INSERT = "insert"
+    DELETE = "delete"
 
 @dataclass
 class Constraint:
@@ -9,15 +13,15 @@ class Constraint:
     table: str
     type_: str
     index: int
-    stage: str
+    insert_delete: InsertDelete
     sql: str
 
-    def __init__(self, schema: str, table: str, type_: str, index: int, stage: str, sql: str) -> None:
+    def __init__(self, schema: str, table: str, type_: str, index: int, insert_delete: InsertDelete, sql: str) -> None:
         self.schema = schema
         self.table = table
         self.type_ = type_
         self.index = index
-        self.stage = stage
+        self.insert_delete = insert_delete
         self.sql = sql
 
     @classmethod
@@ -28,7 +32,7 @@ class Constraint:
         table = tokens[1]
         type_ = tokens[2]
         index = int(tokens[3])
-        stage = tokens[4]
+        insert_delete = InsertDelete(tokens[4])
         with open(file_path, "r") as f:
             sql = f.read().strip()
-        return cls(schema, table, type_, index, stage, sql)
+        return cls(schema, table, type_, index, insert_delete, sql)
