@@ -32,6 +32,13 @@ class ContextPaths:
             raise FileNotFoundError(f"Path {constraints_source_path} does not exist.")
         if not os.path.exists(constraints_target_path):
             raise FileNotFoundError(f"Path {constraints_target_path} does not exist.")
+        self.create_source_path = create_source_path
+        self.create_target_path = create_target_path
+        self.mappings_source_path = mappings_source_path
+        self.mappings_target_path = mappings_target_path
+        self.constraints_source_path = constraints_source_path
+        self.constraints_target_path = constraints_target_path
+
 
     @classmethod
     def from_dir(cls, path: str):
