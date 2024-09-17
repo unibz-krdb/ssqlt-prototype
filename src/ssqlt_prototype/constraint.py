@@ -16,14 +16,6 @@ class Constraint:
     insert_delete: InsertDelete
     sql: str
 
-    def __init__(self, schema: str, table: str, type_: str, index: int, insert_delete: InsertDelete, sql: str) -> None:
-        self.schema = schema
-        self.table = table
-        self.type_ = type_
-        self.index = index
-        self.insert_delete = insert_delete
-        self.sql = sql
-
     @classmethod
     def from_file(cls, file_path: str) -> Self:
         filename = os.path.basename(file_path)
