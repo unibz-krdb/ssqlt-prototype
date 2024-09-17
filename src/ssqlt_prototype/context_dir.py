@@ -42,9 +42,9 @@ class ContextDir:
 
     @classmethod
     def from_dir(cls, path: str):
-        create_path = os.path.join(path, "create")
-        create_source_dir = os.path.join(create_path, "source")
-        create_target_dir = os.path.join(create_path, "target")
+        create_dir = os.path.join(path, "create")
+        create_source_dir = os.path.join(create_dir, "source")
+        create_target_dir = os.path.join(create_dir, "target")
         mappings_dir = os.path.join(path, "mappings")
         mappings_source_dir = os.path.join(mappings_dir, "source")
         mappings_target_dir = os.path.join(mappings_dir, "target")
