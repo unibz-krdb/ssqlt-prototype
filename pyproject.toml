@@ -5,7 +5,6 @@ build-backend = "hatchling.build"
 [project]
 name = "ssqlt-prototype"
 version = "0.0.0dev0"
-dynamic = ["version"]
 dependencies = []
 requires-python = ">= 3.8"
 authors = [
