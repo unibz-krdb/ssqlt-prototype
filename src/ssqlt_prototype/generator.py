@@ -12,12 +12,13 @@ class Generator:
 
     def __init__(self, context: Context) -> None:
         self.context = context
-        self.insert_tables = {context.source_table.table: InsertTable(context.source_table)}
-        self.delete_tables = {context.source_table.table: DeleteTable(context.source_table)}
+        self.insert_tables = {context.source_table.table: InsertTable(source=context.source_table, mapping=context.source_mapping)}
+        self.delete_tables = {context.source_table.table: DeleteTable(source=context.source_table)}
         self.schema = context.source_table.schema
         for table in context.target_tables:
-            self.insert_tables[table.table] = InsertTable(table)
-            self.delete_tables[table.table] = DeleteTable(table)
+            mapping = next(mapping for mapping in context.target_mappings if mapping.target_table.lower() == table.table.lower())
+            self.insert_tables[table.table] = InsertTable(source=table, mapping=mapping)
+            self.delete_tables[table.table] = DeleteTable(source=table)
 
     @classmethod
     def from_dir(cls, path: str) -> Self:
@@ -66,7 +67,7 @@ class Generator:
 
         for table in self.insert_tables:
             insert_table = self.insert_tables[table]
-            transducer += insert_table.createSql() + "\n\n"
+            transducer += insert_table.create_sql() + "\n\n"
 
         # STEP 6: Write delete table
 
@@ -80,8 +81,16 @@ class Generator:
 
         transducer += "/* LOOP PREVENTION MECHANISM */\n\n"
 
-        transducer += f"CREATE TABLE {self.schema}._LOOP (loop_start INT NOT NULL );"
+        transducer += f"CREATE TABLE {self.schema}._LOOP (loop_start INT NOT NULL );\n\n"
 
+        # STEP 8: Write insert functions
+
+        transducer += f"/* INSERT FUNCTIONS & TRIGGERS */\n\n"
+
+        for table in self.insert_tables:
+            insert_table = self.insert_tables[table]
+            transducer += insert_table.generate_function() + "\n\n"
+            transducer += insert_table.generate_trigger() + "\n\n"
 
         return transducer
 
