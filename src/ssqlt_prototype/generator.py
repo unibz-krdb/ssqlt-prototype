@@ -1,21 +1,23 @@
 from typing import Self
 
+from .insert_table import InsertTable
+from .delete_table import DeleteTable
 from .context import Context
 
 
 class Generator:
     context: Context
-    insert_tabless: dict[str, str]
-    delete_tables: dict[str, str]
+    insert_tabless: dict[str, InsertTable]
+    delete_tables: dict[str, DeleteTable]
 
     def __init__(self, context: Context) -> None:
         self.context = context
-        self.insert_tables = {context.source_table.table: context.source_table.table + "_INSERT"}
-        self.delete_tables = {context.source_table.table: context.source_table.table + "_DELETE"}
+        self.insert_tables = {context.source_table.table: InsertTable(context.source_table)}
+        self.delete_tables = {context.source_table.table: DeleteTable(context.source_table)}
         self.schema = context.source_table.schema
         for table in context.target_tables:
-            self.insert_tables[table.table] = table.table + "_INSERT"
-            self.delete_tables[table.table] = table.table + "_DELETE"
+            self.insert_tables[table.table] = InsertTable(table)
+            self.delete_tables[table.table] = DeleteTable(table)
 
     @classmethod
     def from_dir(cls, path: str) -> Self:
@@ -64,7 +66,7 @@ class Generator:
 
         for table in self.insert_tables:
             insert_table = self.insert_tables[table]
-            transducer += f"CREATE TABLE {self.schema}.{insert_table} AS\nSELECT * FROM {self.schema}.{table}\nWHERE 1<>1;\n\n"
+            transducer += insert_table.createSql() + "\n\n"
 
         # STEP 6: Write delete table
 
@@ -72,7 +74,7 @@ class Generator:
 
         for table in self.delete_tables:
             delete_table = self.delete_tables[table]
-            transducer += f"CREATE TABLE {self.schema}.{delete_table} AS\nSELECT * FROM {self.schema}.{table}\nWHERE 1<>1;\n\n"
+            transducer += delete_table.createSql() + "\n\n"
 
         # STEP 7: Loop Prevention Mechanism
 
