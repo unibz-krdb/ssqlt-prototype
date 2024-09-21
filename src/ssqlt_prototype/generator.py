@@ -92,6 +92,15 @@ class Generator:
             transducer += insert_table.generate_function() + "\n\n"
             transducer += insert_table.generate_trigger() + "\n\n"
 
+        # STEP 9: Write delete functions
+
+        transducer += f"/* DELETE FUNCTIONS & TRIGGERS */\n\n"
+
+        for table in self.insert_tables:
+            delete_table = self.delete_tables[table]
+            transducer += delete_table.generate_function() + "\n\n"
+            transducer += delete_table.generate_trigger() + "\n\n"
+
         return transducer
 
     def generate_to_path(self, path: str):
