@@ -3,9 +3,11 @@ import os
 from typing import Self
 from enum import Enum
 
+
 class InsertDelete(Enum):
     INSERT = "insert"
     DELETE = "delete"
+
 
 @dataclass
 class Constraint:
@@ -27,14 +29,16 @@ class Constraint:
         insert_delete = InsertDelete(tokens[4])
         with open(file_path, "r") as f:
             sql = f.read().strip()
-        sql = sql[sql.index("$$"):]
+        sql = sql[sql.index("$$") :]
         return cls(schema, table, type_, index, insert_delete, sql)
 
     def _function_name(self) -> str:
         return f"{self.table}_{self.type_}_{self.index}_{self.insert_delete.value}_fn"
 
     def _trigger_name(self) -> str:
-        return f"{self.table}_{self.type_}_{self.index}_{self.insert_delete.value}_trigger"
+        return (
+            f"{self.table}_{self.type_}_{self.index}_{self.insert_delete.value}_trigger"
+        )
 
     def generate_function(self) -> str:
         return f"""CREATE OR REPLACE FUNCTION {self.schema}.{self._function_name()}()

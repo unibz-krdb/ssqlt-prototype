@@ -30,7 +30,9 @@ class Mapping:
     def sql(self, custom_source_tables: list[str] | None = None) -> str:
         source_tables = custom_source_tables or self.source_tables
         if len(source_tables) != len(self.source_tables):
-            raise ValueError(f"Number of source tables is insufficient: expected {len(self.source_tables)}, got {len(source_tables)}")
+            raise ValueError(
+                f"Number of source tables is insufficient: expected {len(self.source_tables)}, got {len(source_tables)}"
+            )
         subsitution_mapping = {}
         for i, table in enumerate(source_tables):
             subsitution_mapping[f"S{i}"] = table

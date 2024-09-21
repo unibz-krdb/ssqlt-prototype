@@ -4,8 +4,11 @@ from string import Template
 
 from ssqlt_prototype.mapping import Mapping
 
+
 def test_from_file(input_dir):
-    file_path = os.path.join(input_dir, "mappings", "target", "transducer._person._city.sql")
+    file_path = os.path.join(
+        input_dir, "mappings", "target", "transducer._person._city.sql"
+    )
     mapping = Mapping.from_file(file_path)
     assert mapping.schema == "transducer"
     assert mapping.source_tables == ["_person"]

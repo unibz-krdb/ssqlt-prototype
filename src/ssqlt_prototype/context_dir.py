@@ -39,7 +39,6 @@ class ContextDir:
         self.constraints_source_dir = constraints_source_dir
         self.constraints_target_dir = constraints_target_dir
 
-
     @classmethod
     def from_dir(cls, path: str):
         create_dir = os.path.join(path, "create")
