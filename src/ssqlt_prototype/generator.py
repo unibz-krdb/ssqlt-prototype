@@ -5,9 +5,17 @@ from .context import Context
 
 class Generator:
     context: Context
+    insert_tabless: dict[str, str]
+    delete_tables: dict[str, str]
 
     def __init__(self, context: Context) -> None:
         self.context = context
+        self.insert_tables = {context.source_table.table: context.source_table.table + "_INSERT"}
+        self.delete_tables = {context.source_table.table: context.source_table.table + "_DELETE"}
+        self.schema = context.source_table.schema
+        for table in context.target_tables:
+            self.insert_tables[table.table] = table.table + "_INSERT"
+            self.delete_tables[table.table] = table.table + "_DELETE"
 
     @classmethod
     def from_dir(cls, path: str) -> Self:
@@ -49,6 +57,29 @@ class Generator:
         for constraint in self.context.target_constraints:
             transducer += constraint.generate_function() + "\n\n"
             transducer += constraint.generate_trigger() + "\n\n\n"
+
+        # STEP 5: Write insert table
+
+        transducer += "/* INSERT TABLES */\n\n"
+
+        for table in self.insert_tables:
+            insert_table = self.insert_tables[table]
+            transducer += f"CREATE TABLE {self.schema}.{insert_table} AS\nSELECT * FROM {self.schema}.{table}\nWHERE 1<>1;\n\n"
+
+        # STEP 6: Write delete table
+
+        transducer += "/* DELETE TABLES */\n\n"
+
+        for table in self.delete_tables:
+            delete_table = self.delete_tables[table]
+            transducer += f"CREATE TABLE {self.schema}.{delete_table} AS\nSELECT * FROM {self.schema}.{table}\nWHERE 1<>1;\n\n"
+
+        # STEP 7: Loop Prevention Mechanism
+
+        transducer += "/* LOOP PREVENTION MECHANISM */\n\n"
+
+        transducer += f"CREATE TABLE {self.schema}._LOOP (loop_start INT NOT NULL );"
+
 
         return transducer
 
