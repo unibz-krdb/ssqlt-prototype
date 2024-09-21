@@ -345,10 +345,11 @@ WHERE 1<>1;
 CREATE TABLE transducer._LOOP (
 loop_start INT NOT NULL );
 
-/* */
 
+/** SIMPLE **/
 /** S->T INSERTS **/
 
+/* First we insert into _person insert table */
 CREATE OR REPLACE FUNCTION transducer.source_person_insert_fn()
    RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
    BEGIN
@@ -363,6 +364,12 @@ CREATE OR REPLACE FUNCTION transducer.source_person_insert_fn()
    END IF;
 END;  $$;
 
+CREATE TRIGGER source_person_insert_trigger
+AFTER INSERT ON transducer._person
+FOR EACH ROW
+EXECUTE FUNCTION transducer.source_person_insert_fn();
+
+/* Then we insert into the target tables from the insert table */
 CREATE OR REPLACE FUNCTION transducer.source_insert_fn()
    RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
    BEGIN
@@ -378,6 +385,11 @@ CREATE OR REPLACE FUNCTION transducer.source_insert_fn()
 
       RETURN NEW;
 END;  $$;
+
+CREATE TRIGGER source_insert_trigger
+AFTER INSERT ON transducer._person_insert
+FOR EACH ROW
+EXECUTE FUNCTION transducer.source_insert_fn();
 
 /** S->T DELETES **/
 
@@ -397,40 +409,6 @@ END;  $$;
 
 
 
-CREATE OR REPLACE FUNCTION transducer.source_delete_fn()
-   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
-   BEGIN
-   /* THE MVD AND THE CONDITONAL SPLIT MAKE THIS PROCESS SO MUCH MORE COMPLEX */
-   /* WE START BY CHECKING IF WE HAVE TO DELETE AN ENTIRE PERSON, OR JUST A PHONE NUMBER */
-   RAISE NOTICE 'BEGIN THE DELETE';
-   IF EXISTS (SELECT ssn, phone FROM transducer._person_phone WHERE ssn = NEW.ssn EXCEPT SELECT NEW.ssn, NEW.phone) THEN
-      RAISE NOTICE 'ONLY PHONE DELETE';
-      DELETE FROM transducer._person_phone WHERE ssn = NEW.ssn AND phone = NEW.phone;
-   ELSE
-      DELETE FROM transducer._person_phone WHERE ssn = NEW.ssn AND phone = NEW.phone;
-      /* THEN WE CHECK IF THE TUPLE REMOVE A MANAGER*/
-      IF (NEW.manager IS NOT NULL) THEN
-         DELETE FROM transducer._person_manager WHERE ssn = NEW.ssn AND manager = NEW.manager AND city = NEW.city;
-         IF NOT EXISTS(SELECT ssn, manager, city FROM transducer._person_manager WHERE manager = NEW.manager) THEN
-            DELETE FROM transducer._manager WHERE manager = NEW.manager AND title = NEW.title;
-         END IF;
-      ELSE
-         DELETE FROM transducer._person_no_manager WHERE ssn = NEW.ssn AND city = NEW.city;
-      END IF;
-      /* A REALLY FUN ASPECT OF HAVING NO RELATION TABLE BETWEEEN PERSON AND CITY MEAN THAT DELETING CITIES IS QUITE COMPLEX */
-      IF NOT EXISTS ((SELECT ssn, city FROM transducer._person_manager WHERE city = NEW.city
-         UNION SELECT ssn, city FROM transducer._person_no_manager WHERE city = NEW.city)
-         EXCEPT SELECT NEW.ssn, NEW.city) THEN
-         DELETE FROM transducer._city WHERE city = NEW.city AND country = NEW.country AND mayor = NEW.mayor;
-      END IF;
-      DELETE FROM transducer._person_ssn WHERE ssn = NEW.ssn;
-
-   END IF;
-   DELETE FROM transducer._person_delete;
-   DELETE FROM transducer._loop;
-   RETURN NEW;
-END;  $$;
-
 
 /**T->S INSERTS **/
 CREATE OR REPLACE FUNCTION transducer.target_person_ssn_insert_fn()
@@ -445,6 +423,11 @@ CREATE OR REPLACE FUNCTION transducer.target_person_ssn_insert_fn()
       RETURN NEW;
    END IF;
 END;  $$;
+
+CREATE TRIGGER target_person_ssn_insert_trigger
+AFTER INSERT ON transducer._person_ssn
+FOR EACH ROW
+EXECUTE FUNCTION transducer.target_person_ssn_insert_fn();
 
 CREATE OR REPLACE FUNCTION transducer.target_person_manager_insert_fn()
    RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
@@ -511,76 +494,6 @@ CREATE OR REPLACE FUNCTION transducer.target_city_insert_fn()
    END IF;
 END; $$;
 
-/* This gets a bit complicated as the person update fully depend on which new information was actually added.
-   For example, adding a new ssn,phone couple would only update the _person_phone_insert table, but it still need to get inserted into _person,
-   requiring a bunch of joins to be made*/
-
-CREATE OR REPLACE FUNCTION transducer.target_person_insert_fn()
-   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
-   BEGIN
-   /*
-   IF((SELECT SUM(loop_start) FROM transducer._loop WHERE loop_start = 1 ) >0) THEN
-      RAISE NOTICE 'I wish there was an easier way to check how many rows exists in _loop';
-      DELETE FROM transducer._loop WHERE loop_start IN (SELECT * FROM transducer._loop WHERE loop_start = 1 LIMIT 1);
-      RETURN NULL;
-   END IF;
-   */
-   RAISE NOTICE 'Starting insertion from target';
-   /* I guess we can start with a first split checking if the added tuple bring any new cities*/
-   IF EXISTS (SELECT * FROM transducer._city_insert) THEN
-      /* If a new city is added, then it must be linked to a new ssn and everything that goes with it */
-      RAISE NOTICE 'WE ADDED A FULL NEW TUPLE WITH A NEW CITY';
-      INSERT INTO transducer._person (
-            SELECT ssn, phone, manager, title, city, country, mayor FROM transducer._person_ssn_insert
-            NATURAL JOIN transducer._person_phone_insert NATURAL JOIN transducer._city_insert NATURAL JOIN(
-            SELECT ssn, manager, title, city FROM transducer._person_manager_insert NATURAL JOIN transducer._manager_insert
-            UNION
-            SELECT ssn, null, null, city FROM transducer._person_no_manager_insert));
-   ELSE
-      /* If no new city is added, then this could be new person, so we check for SSN*/
-      IF EXISTS (SELECT * FROM transducer._person_ssn_insert) THEN
-         /* Then we use join with target tables instead of target_insert tables */
-         IF EXISTS (SELECT * FROM transducer._manager_insert) THEN
-            RAISE NOTICE 'WE ADDED A NEW MANAGER CONNECTION';
-            /* This is really annoying but if _manager_insert is empty then we can't add a new subaltern */
-            INSERT INTO transducer._person (
-            SELECT ssn, phone, manager, title, city, country, mayor FROM transducer._person_ssn_insert
-            NATURAL JOIN transducer._person_phone_insert NATURAL JOIN transducer._city NATURAL JOIN(
-            SELECT ssn, manager, title, city FROM transducer._person_manager_insert NATURAL JOIN transducer._manager_insert
-            UNION
-            SELECT ssn, null, null, city FROM transducer._person_no_manager_insert));
-         ELSE
-            INSERT INTO transducer._person (
-            SELECT ssn, phone, manager, title, city, country, mayor FROM transducer._person_ssn_insert
-            NATURAL JOIN transducer._person_phone_insert NATURAL JOIN transducer._city NATURAL JOIN(
-            SELECT ssn, manager, title, city FROM transducer._person_manager_insert NATURAL JOIN transducer._manager
-            UNION
-            SELECT ssn, null, null, city FROM transducer._person_no_manager_insert));
-         END IF;
-      ELSE
-         /* If no new person is added, then it's a new phone number for an already existing person*/
-         INSERT INTO transducer._person (
-            SELECT ssn, phone, manager, title, city, country, mayor FROM transducer._person_phone_insert
-            NATURAL JOIN transducer._person_ssn NATURAL JOIN transducer._city NATURAL JOIN(
-            SELECT ssn, manager, title, city FROM transducer._person_manager NATURAL JOIN transducer._manager
-            UNION
-            SELECT ssn, null, null, city FROM transducer._person_no_manager));
-      END IF;
-   END IF;
-   /* A LOT OF INSERT TABLE DELETE TO CLEAR IT ALL */
-   DELETE FROM transducer._person_ssn_insert;
-   DELETE FROM transducer._person_manager_insert;
-   DELETE FROM transducer._manager_insert;
-   DELETE FROM transducer._person_no_manager_insert;
-   DELETE FROM transducer._person_phone_insert;
-   DELETE FROM transducer._city_insert;
-   /*
-   DELETE FROM transducer._loop;
-   */
-   RETURN NEW;
-END;  $$;
-
-
 /** T->S DELETE **/
 
 
@@ -614,7 +527,6 @@ CREATE OR REPLACE FUNCTION transducer.target_person_manager_delete_fn()
    RETURN NEW;
 
 END;  $$;
-
 
 CREATE OR REPLACE FUNCTION transducer.target_manager_delete_fn()
    RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
@@ -698,16 +610,8 @@ END;  $$;
 
 /** S->T INSERT TRIGGERS **/
 
-CREATE TRIGGER source_person_insert_trigger
-AFTER INSERT ON transducer._person
-FOR EACH ROW
-EXECUTE FUNCTION transducer.source_person_insert_fn();
 
 
-CREATE TRIGGER source_insert_trigger
-AFTER INSERT ON transducer._person_insert
-FOR EACH ROW
-EXECUTE FUNCTION transducer.source_insert_fn();
 
 
 /** S->T DELETE TRIGGERS **/
@@ -724,10 +628,6 @@ EXECUTE FUNCTION transducer.source_delete_fn();
 
 /** T->S INSERT **/
 
-CREATE TRIGGER target_person_ssn_insert_trigger
-AFTER INSERT ON transducer._person_ssn
-FOR EACH ROW
-EXECUTE FUNCTION transducer.target_person_ssn_insert_fn();
 
 CREATE TRIGGER target_person_manager_insert_trigger
 AFTER INSERT ON transducer._person_manager
@@ -823,3 +723,113 @@ FOR EACH ROW
 EXECUTE FUNCTION transducer.target_person_delete_fn();
 
 /* */
+
+
+/** COMPLEX **/
+/** S->T DELETES **/
+CREATE OR REPLACE FUNCTION transducer.source_delete_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+   /* THE MVD AND THE CONDITONAL SPLIT MAKE THIS PROCESS SO MUCH MORE COMPLEX */
+   /* WE START BY CHECKING IF WE HAVE TO DELETE AN ENTIRE PERSON, OR JUST A PHONE NUMBER */
+   RAISE NOTICE 'BEGIN THE DELETE';
+   IF EXISTS (SELECT ssn, phone FROM transducer._person_phone WHERE ssn = NEW.ssn EXCEPT SELECT NEW.ssn, NEW.phone) THEN
+      RAISE NOTICE 'ONLY PHONE DELETE';
+      DELETE FROM transducer._person_phone WHERE ssn = NEW.ssn AND phone = NEW.phone;
+   ELSE
+      DELETE FROM transducer._person_phone WHERE ssn = NEW.ssn AND phone = NEW.phone;
+      /* THEN WE CHECK IF THE TUPLE REMOVE A MANAGER*/
+      IF (NEW.manager IS NOT NULL) THEN
+         DELETE FROM transducer._person_manager WHERE ssn = NEW.ssn AND manager = NEW.manager AND city = NEW.city;
+         IF NOT EXISTS(SELECT ssn, manager, city FROM transducer._person_manager WHERE manager = NEW.manager) THEN
+            DELETE FROM transducer._manager WHERE manager = NEW.manager AND title = NEW.title;
+         END IF;
+      ELSE
+         DELETE FROM transducer._person_no_manager WHERE ssn = NEW.ssn AND city = NEW.city;
+      END IF;
+      /* A REALLY FUN ASPECT OF HAVING NO RELATION TABLE BETWEEEN PERSON AND CITY MEAN THAT DELETING CITIES IS QUITE COMPLEX */
+      IF NOT EXISTS ((SELECT ssn, city FROM transducer._person_manager WHERE city = NEW.city
+         UNION SELECT ssn, city FROM transducer._person_no_manager WHERE city = NEW.city)
+         EXCEPT SELECT NEW.ssn, NEW.city) THEN
+         DELETE FROM transducer._city WHERE city = NEW.city AND country = NEW.country AND mayor = NEW.mayor;
+      END IF;
+      DELETE FROM transducer._person_ssn WHERE ssn = NEW.ssn;
+
+   END IF;
+   DELETE FROM transducer._person_delete;
+   DELETE FROM transducer._loop;
+   RETURN NEW;
+END;  $$;
+
+/** COMPLEX **/
+
+/**T->S INSERTS **/
+
+/* This gets a bit complicated as the person update fully depend on which new information was actually added.
+   For example, adding a new ssn,phone couple would only update the _person_phone_insert table, but it still need to get inserted into _person,
+   requiring a bunch of joins to be made*/
+
+CREATE OR REPLACE FUNCTION transducer.target_person_insert_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+   /*
+   IF((SELECT SUM(loop_start) FROM transducer._loop WHERE loop_start = 1 ) >0) THEN
+      RAISE NOTICE 'I wish there was an easier way to check how many rows exists in _loop';
+      DELETE FROM transducer._loop WHERE loop_start IN (SELECT * FROM transducer._loop WHERE loop_start = 1 LIMIT 1);
+      RETURN NULL;
+   END IF;
+   */
+   RAISE NOTICE 'Starting insertion from target';
+   /* I guess we can start with a first split checking if the added tuple bring any new cities*/
+   IF EXISTS (SELECT * FROM transducer._city_insert) THEN
+      /* If a new city is added, then it must be linked to a new ssn and everything that goes with it */
+      RAISE NOTICE 'WE ADDED A FULL NEW TUPLE WITH A NEW CITY';
+      INSERT INTO transducer._person (
+            SELECT ssn, phone, manager, title, city, country, mayor FROM transducer._person_ssn_insert
+            NATURAL JOIN transducer._person_phone_insert NATURAL JOIN transducer._city_insert NATURAL JOIN(
+            SELECT ssn, manager, title, city FROM transducer._person_manager_insert NATURAL JOIN transducer._manager_insert
+            UNION
+            SELECT ssn, null, null, city FROM transducer._person_no_manager_insert));
+   ELSE
+      /* If no new city is added, then this could be new person, so we check for SSN*/
+      IF EXISTS (SELECT * FROM transducer._person_ssn_insert) THEN
+         /* Then we use join with target tables instead of target_insert tables */
+         IF EXISTS (SELECT * FROM transducer._manager_insert) THEN
+            RAISE NOTICE 'WE ADDED A NEW MANAGER CONNECTION';
+            /* This is really annoying but if _manager_insert is empty then we can't add a new subaltern */
+            INSERT INTO transducer._person (
+            SELECT ssn, phone, manager, title, city, country, mayor FROM transducer._person_ssn_insert
+            NATURAL JOIN transducer._person_phone_insert NATURAL JOIN transducer._city NATURAL JOIN(
+            SELECT ssn, manager, title, city FROM transducer._person_manager_insert NATURAL JOIN transducer._manager_insert
+            UNION
+            SELECT ssn, null, null, city FROM transducer._person_no_manager_insert));
+         ELSE
+            INSERT INTO transducer._person (
+            SELECT ssn, phone, manager, title, city, country, mayor FROM transducer._person_ssn_insert
+            NATURAL JOIN transducer._person_phone_insert NATURAL JOIN transducer._city NATURAL JOIN(
+            SELECT ssn, manager, title, city FROM transducer._person_manager_insert NATURAL JOIN transducer._manager
+            UNION
+            SELECT ssn, null, null, city FROM transducer._person_no_manager_insert));
+         END IF;
+      ELSE
+         /* If no new person is added, then it's a new phone number for an already existing person*/
+         INSERT INTO transducer._person (
+            SELECT ssn, phone, manager, title, city, country, mayor FROM transducer._person_phone_insert
+            NATURAL JOIN transducer._person_ssn NATURAL JOIN transducer._city NATURAL JOIN(
+            SELECT ssn, manager, title, city FROM transducer._person_manager NATURAL JOIN transducer._manager
+            UNION
+            SELECT ssn, null, null, city FROM transducer._person_no_manager));
+      END IF;
+   END IF;
+   /* A LOT OF INSERT TABLE DELETE TO CLEAR IT ALL */
+   DELETE FROM transducer._person_ssn_insert;
+   DELETE FROM transducer._person_manager_insert;
+   DELETE FROM transducer._manager_insert;
+   DELETE FROM transducer._person_no_manager_insert;
+   DELETE FROM transducer._person_phone_insert;
+   DELETE FROM transducer._city_insert;
+   /*
+   DELETE FROM transducer._loop;
+   */
+   RETURN NEW;
+END;  $$;
