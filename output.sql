@@ -253,72 +253,421 @@ ADD FOREIGN KEY (manager) REFERENCES transducer._person_ssn(ssn);
 
 /* INSERT TABLES */
 
-CREATE TABLE transducer._PERSON_INSERT AS
-SELECT * FROM transducer._PERSON
+CREATE TABLE transducer._person_INSERT AS
+SELECT * FROM transducer._person
 WHERE 1<>1;
 
-CREATE TABLE transducer._PERSON_CITY_INSERT AS
-SELECT * FROM transducer._PERSON_CITY
+CREATE TABLE transducer._person_city_INSERT AS
+SELECT * FROM transducer._person_city
 WHERE 1<>1;
 
-CREATE TABLE transducer._PERSON_NO_MANAGER_INSERT AS
-SELECT * FROM transducer._PERSON_NO_MANAGER
+CREATE TABLE transducer._person_no_manager_INSERT AS
+SELECT * FROM transducer._person_no_manager
 WHERE 1<>1;
 
-CREATE TABLE transducer._PERSON_MANAGER_INSERT AS
-SELECT * FROM transducer._PERSON_MANAGER
+CREATE TABLE transducer._person_manager_INSERT AS
+SELECT * FROM transducer._person_manager
 WHERE 1<>1;
 
-CREATE TABLE transducer._PERSON_SSN_INSERT AS
-SELECT * FROM transducer._PERSON_SSN
+CREATE TABLE transducer._person_ssn_INSERT AS
+SELECT * FROM transducer._person_ssn
 WHERE 1<>1;
 
-CREATE TABLE transducer._PERSON_PHONE_INSERT AS
-SELECT * FROM transducer._PERSON_PHONE
+CREATE TABLE transducer._person_phone_INSERT AS
+SELECT * FROM transducer._person_phone
 WHERE 1<>1;
 
-CREATE TABLE transducer._CITY_INSERT AS
-SELECT * FROM transducer._CITY
+CREATE TABLE transducer._city_INSERT AS
+SELECT * FROM transducer._city
 WHERE 1<>1;
 
-CREATE TABLE transducer._MANAGER_INSERT AS
-SELECT * FROM transducer._MANAGER
+CREATE TABLE transducer._manager_INSERT AS
+SELECT * FROM transducer._manager
 WHERE 1<>1;
 
 /* DELETE TABLES */
 
-CREATE TABLE transducer._PERSON_DELETE AS
-SELECT * FROM transducer._PERSON
+CREATE TABLE transducer._person_DELETE AS
+SELECT * FROM transducer._person
 WHERE 1<>1;
 
-CREATE TABLE transducer._PERSON_CITY_DELETE AS
-SELECT * FROM transducer._PERSON_CITY
+CREATE TABLE transducer._person_city_DELETE AS
+SELECT * FROM transducer._person_city
 WHERE 1<>1;
 
-CREATE TABLE transducer._PERSON_NO_MANAGER_DELETE AS
-SELECT * FROM transducer._PERSON_NO_MANAGER
+CREATE TABLE transducer._person_no_manager_DELETE AS
+SELECT * FROM transducer._person_no_manager
 WHERE 1<>1;
 
-CREATE TABLE transducer._PERSON_MANAGER_DELETE AS
-SELECT * FROM transducer._PERSON_MANAGER
+CREATE TABLE transducer._person_manager_DELETE AS
+SELECT * FROM transducer._person_manager
 WHERE 1<>1;
 
-CREATE TABLE transducer._PERSON_SSN_DELETE AS
-SELECT * FROM transducer._PERSON_SSN
+CREATE TABLE transducer._person_ssn_DELETE AS
+SELECT * FROM transducer._person_ssn
 WHERE 1<>1;
 
-CREATE TABLE transducer._PERSON_PHONE_DELETE AS
-SELECT * FROM transducer._PERSON_PHONE
+CREATE TABLE transducer._person_phone_DELETE AS
+SELECT * FROM transducer._person_phone
 WHERE 1<>1;
 
-CREATE TABLE transducer._CITY_DELETE AS
-SELECT * FROM transducer._CITY
+CREATE TABLE transducer._city_DELETE AS
+SELECT * FROM transducer._city
 WHERE 1<>1;
 
-CREATE TABLE transducer._MANAGER_DELETE AS
-SELECT * FROM transducer._MANAGER
+CREATE TABLE transducer._manager_DELETE AS
+SELECT * FROM transducer._manager
 WHERE 1<>1;
 
 /* LOOP PREVENTION MECHANISM */
 
 CREATE TABLE transducer._LOOP (loop_start INT NOT NULL );
+
+/* INSERT FUNCTIONS & TRIGGERS */
+
+CREATE OR REPLACE FUNCTION transducer._person_INSERT_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+   IF EXISTS (SELECT * FROM transducer._loop) THEN
+      DELETE FROM transducer._loop;
+      DELETE FROM transducer._person_INSERT;
+      RETURN NULL;
+   ELSE
+      INSERT INTO transducer._loop VALUES (-1);
+      INSERT INTO transducer._person_INSERT VALUES(SELECT * from NEW);
+      RETURN NEW;
+   END IF;
+END;  $$;
+
+
+CREATE TRIGGER transducer._person_INSERT_trigger
+AFTER INSERT ON transducer._person
+FOR EACH ROW
+EXECUTE FUNCTION transducer._person_INSERT_fn();
+        
+
+CREATE OR REPLACE FUNCTION transducer._person_city_INSERT_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+   IF EXISTS (SELECT * FROM transducer._loop) THEN
+      DELETE FROM transducer._loop;
+      DELETE FROM transducer._person_city_INSERT;
+      RETURN NULL;
+   ELSE
+      INSERT INTO transducer._loop VALUES (-1);
+      INSERT INTO transducer._person_city_INSERT VALUES(SELECT * from NEW);
+      RETURN NEW;
+   END IF;
+END;  $$;
+
+
+CREATE TRIGGER transducer._person_city_INSERT_trigger
+AFTER INSERT ON transducer._person_city
+FOR EACH ROW
+EXECUTE FUNCTION transducer._person_city_INSERT_fn();
+        
+
+CREATE OR REPLACE FUNCTION transducer._person_no_manager_INSERT_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+   IF EXISTS (SELECT * FROM transducer._loop) THEN
+      DELETE FROM transducer._loop;
+      DELETE FROM transducer._person_no_manager_INSERT;
+      RETURN NULL;
+   ELSE
+      INSERT INTO transducer._loop VALUES (-1);
+      INSERT INTO transducer._person_no_manager_INSERT VALUES(SELECT * from NEW);
+      RETURN NEW;
+   END IF;
+END;  $$;
+
+
+CREATE TRIGGER transducer._person_no_manager_INSERT_trigger
+AFTER INSERT ON transducer._person_no_manager
+FOR EACH ROW
+EXECUTE FUNCTION transducer._person_no_manager_INSERT_fn();
+        
+
+CREATE OR REPLACE FUNCTION transducer._person_manager_INSERT_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+   IF EXISTS (SELECT * FROM transducer._loop) THEN
+      DELETE FROM transducer._loop;
+      DELETE FROM transducer._person_manager_INSERT;
+      RETURN NULL;
+   ELSE
+      INSERT INTO transducer._loop VALUES (-1);
+      INSERT INTO transducer._person_manager_INSERT VALUES(SELECT * from NEW);
+      RETURN NEW;
+   END IF;
+END;  $$;
+
+
+CREATE TRIGGER transducer._person_manager_INSERT_trigger
+AFTER INSERT ON transducer._person_manager
+FOR EACH ROW
+EXECUTE FUNCTION transducer._person_manager_INSERT_fn();
+        
+
+CREATE OR REPLACE FUNCTION transducer._person_ssn_INSERT_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+   IF EXISTS (SELECT * FROM transducer._loop) THEN
+      DELETE FROM transducer._loop;
+      DELETE FROM transducer._person_ssn_INSERT;
+      RETURN NULL;
+   ELSE
+      INSERT INTO transducer._loop VALUES (-1);
+      INSERT INTO transducer._person_ssn_INSERT VALUES(SELECT * from NEW);
+      RETURN NEW;
+   END IF;
+END;  $$;
+
+
+CREATE TRIGGER transducer._person_ssn_INSERT_trigger
+AFTER INSERT ON transducer._person_ssn
+FOR EACH ROW
+EXECUTE FUNCTION transducer._person_ssn_INSERT_fn();
+        
+
+CREATE OR REPLACE FUNCTION transducer._person_phone_INSERT_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+   IF EXISTS (SELECT * FROM transducer._loop) THEN
+      DELETE FROM transducer._loop;
+      DELETE FROM transducer._person_phone_INSERT;
+      RETURN NULL;
+   ELSE
+      INSERT INTO transducer._loop VALUES (-1);
+      INSERT INTO transducer._person_phone_INSERT VALUES(SELECT * from NEW);
+      RETURN NEW;
+   END IF;
+END;  $$;
+
+
+CREATE TRIGGER transducer._person_phone_INSERT_trigger
+AFTER INSERT ON transducer._person_phone
+FOR EACH ROW
+EXECUTE FUNCTION transducer._person_phone_INSERT_fn();
+        
+
+CREATE OR REPLACE FUNCTION transducer._city_INSERT_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+   IF EXISTS (SELECT * FROM transducer._loop) THEN
+      DELETE FROM transducer._loop;
+      DELETE FROM transducer._city_INSERT;
+      RETURN NULL;
+   ELSE
+      INSERT INTO transducer._loop VALUES (-1);
+      INSERT INTO transducer._city_INSERT VALUES(SELECT * from NEW);
+      RETURN NEW;
+   END IF;
+END;  $$;
+
+
+CREATE TRIGGER transducer._city_INSERT_trigger
+AFTER INSERT ON transducer._city
+FOR EACH ROW
+EXECUTE FUNCTION transducer._city_INSERT_fn();
+        
+
+CREATE OR REPLACE FUNCTION transducer._manager_INSERT_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+   IF EXISTS (SELECT * FROM transducer._loop) THEN
+      DELETE FROM transducer._loop;
+      DELETE FROM transducer._manager_INSERT;
+      RETURN NULL;
+   ELSE
+      INSERT INTO transducer._loop VALUES (-1);
+      INSERT INTO transducer._manager_INSERT VALUES(SELECT * from NEW);
+      RETURN NEW;
+   END IF;
+END;  $$;
+
+
+CREATE TRIGGER transducer._manager_INSERT_trigger
+AFTER INSERT ON transducer._manager
+FOR EACH ROW
+EXECUTE FUNCTION transducer._manager_INSERT_fn();
+        
+
+/* DELETE FUNCTIONS & TRIGGERS */
+
+CREATE OR REPLACE FUNCTION transducer._person_DELETE_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+   IF EXISTS (SELECT * FROM transducer._loop WHERE loop_start = 2) THEN
+         DELETE FROM transducer._person_DELETE;
+         RETURN NULL;
+   END IF;
+   IF EXISTS (SELECT * FROM transducer._loop WHERE loop_start = 1) THEN
+         RETURN NULL;
+   END IF;
+   INSERT INTO transducer._loop VALUES (-1);
+   INSERT INTO transducer._person_DELETE VALUES(SELECT * FROM OLD);
+   RETURN NEW;
+END;  $$;
+
+
+CREATE TRIGGER transducer._person_DELETE_trigger
+AFTER DELETE ON transducer._person
+FOR EACH ROW
+EXECUTE FUNCTION transducer._person_DELETE_fn();
+        
+
+CREATE OR REPLACE FUNCTION transducer._person_city_DELETE_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+   IF EXISTS (SELECT * FROM transducer._loop WHERE loop_start = 2) THEN
+         DELETE FROM transducer._person_city_DELETE;
+         RETURN NULL;
+   END IF;
+   IF EXISTS (SELECT * FROM transducer._loop WHERE loop_start = 1) THEN
+         RETURN NULL;
+   END IF;
+   INSERT INTO transducer._loop VALUES (-1);
+   INSERT INTO transducer._person_city_DELETE VALUES(SELECT * FROM OLD);
+   RETURN NEW;
+END;  $$;
+
+
+CREATE TRIGGER transducer._person_city_DELETE_trigger
+AFTER DELETE ON transducer._person_city
+FOR EACH ROW
+EXECUTE FUNCTION transducer._person_city_DELETE_fn();
+        
+
+CREATE OR REPLACE FUNCTION transducer._person_no_manager_DELETE_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+   IF EXISTS (SELECT * FROM transducer._loop WHERE loop_start = 2) THEN
+         DELETE FROM transducer._person_no_manager_DELETE;
+         RETURN NULL;
+   END IF;
+   IF EXISTS (SELECT * FROM transducer._loop WHERE loop_start = 1) THEN
+         RETURN NULL;
+   END IF;
+   INSERT INTO transducer._loop VALUES (-1);
+   INSERT INTO transducer._person_no_manager_DELETE VALUES(SELECT * FROM OLD);
+   RETURN NEW;
+END;  $$;
+
+
+CREATE TRIGGER transducer._person_no_manager_DELETE_trigger
+AFTER DELETE ON transducer._person_no_manager
+FOR EACH ROW
+EXECUTE FUNCTION transducer._person_no_manager_DELETE_fn();
+        
+
+CREATE OR REPLACE FUNCTION transducer._person_manager_DELETE_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+   IF EXISTS (SELECT * FROM transducer._loop WHERE loop_start = 2) THEN
+         DELETE FROM transducer._person_manager_DELETE;
+         RETURN NULL;
+   END IF;
+   IF EXISTS (SELECT * FROM transducer._loop WHERE loop_start = 1) THEN
+         RETURN NULL;
+   END IF;
+   INSERT INTO transducer._loop VALUES (-1);
+   INSERT INTO transducer._person_manager_DELETE VALUES(SELECT * FROM OLD);
+   RETURN NEW;
+END;  $$;
+
+
+CREATE TRIGGER transducer._person_manager_DELETE_trigger
+AFTER DELETE ON transducer._person_manager
+FOR EACH ROW
+EXECUTE FUNCTION transducer._person_manager_DELETE_fn();
+        
+
+CREATE OR REPLACE FUNCTION transducer._person_ssn_DELETE_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+   IF EXISTS (SELECT * FROM transducer._loop WHERE loop_start = 2) THEN
+         DELETE FROM transducer._person_ssn_DELETE;
+         RETURN NULL;
+   END IF;
+   IF EXISTS (SELECT * FROM transducer._loop WHERE loop_start = 1) THEN
+         RETURN NULL;
+   END IF;
+   INSERT INTO transducer._loop VALUES (-1);
+   INSERT INTO transducer._person_ssn_DELETE VALUES(SELECT * FROM OLD);
+   RETURN NEW;
+END;  $$;
+
+
+CREATE TRIGGER transducer._person_ssn_DELETE_trigger
+AFTER DELETE ON transducer._person_ssn
+FOR EACH ROW
+EXECUTE FUNCTION transducer._person_ssn_DELETE_fn();
+        
+
+CREATE OR REPLACE FUNCTION transducer._person_phone_DELETE_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+   IF EXISTS (SELECT * FROM transducer._loop WHERE loop_start = 2) THEN
+         DELETE FROM transducer._person_phone_DELETE;
+         RETURN NULL;
+   END IF;
+   IF EXISTS (SELECT * FROM transducer._loop WHERE loop_start = 1) THEN
+         RETURN NULL;
+   END IF;
+   INSERT INTO transducer._loop VALUES (-1);
+   INSERT INTO transducer._person_phone_DELETE VALUES(SELECT * FROM OLD);
+   RETURN NEW;
+END;  $$;
+
+
+CREATE TRIGGER transducer._person_phone_DELETE_trigger
+AFTER DELETE ON transducer._person_phone
+FOR EACH ROW
+EXECUTE FUNCTION transducer._person_phone_DELETE_fn();
+        
+
+CREATE OR REPLACE FUNCTION transducer._city_DELETE_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+   IF EXISTS (SELECT * FROM transducer._loop WHERE loop_start = 2) THEN
+         DELETE FROM transducer._city_DELETE;
+         RETURN NULL;
+   END IF;
+   IF EXISTS (SELECT * FROM transducer._loop WHERE loop_start = 1) THEN
+         RETURN NULL;
+   END IF;
+   INSERT INTO transducer._loop VALUES (-1);
+   INSERT INTO transducer._city_DELETE VALUES(SELECT * FROM OLD);
+   RETURN NEW;
+END;  $$;
+
+
+CREATE TRIGGER transducer._city_DELETE_trigger
+AFTER DELETE ON transducer._city
+FOR EACH ROW
+EXECUTE FUNCTION transducer._city_DELETE_fn();
+        
+
+CREATE OR REPLACE FUNCTION transducer._manager_DELETE_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+   IF EXISTS (SELECT * FROM transducer._loop WHERE loop_start = 2) THEN
+         DELETE FROM transducer._manager_DELETE;
+         RETURN NULL;
+   END IF;
+   IF EXISTS (SELECT * FROM transducer._loop WHERE loop_start = 1) THEN
+         RETURN NULL;
+   END IF;
+   INSERT INTO transducer._loop VALUES (-1);
+   INSERT INTO transducer._manager_DELETE VALUES(SELECT * FROM OLD);
+   RETURN NEW;
+END;  $$;
+
+
+CREATE TRIGGER transducer._manager_DELETE_trigger
+AFTER DELETE ON transducer._manager
+FOR EACH ROW
+EXECUTE FUNCTION transducer._manager_DELETE_fn();
+        
+
