@@ -369,22 +369,6 @@ AFTER INSERT ON transducer._person
 FOR EACH ROW
 EXECUTE FUNCTION transducer.source_person_insert_fn();
 
-/* Then we insert into the target tables from the insert table */
-CREATE OR REPLACE FUNCTION transducer.source_insert_fn()
-   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
-   BEGIN
-
-      INSERT INTO transducer._person_ssn VALUES (NEW.ssn) ON CONFLICT (ssn) DO NOTHING;
-      INSERT INTO transducer._city VALUES (NEW.city, NEW.country, NEW.mayor) ON CONFLICT (city) DO NOTHING;
-      INSERT INTO transducer._person_phone VALUES (NEW.ssn, NEW.phone) ON CONFLICT (ssn,phone) DO NOTHING;
-      INSERT INTO transducer._manager (SELECT NEW.manager, NEW.title WHERE NEW.manager IS NOT NULL AND NEW.title IS NOT NULL) ON CONFLICT (manager) DO NOTHING;
-      INSERT INTO transducer._person_manager (SELECT NEW.ssn, NEW.manager, NEW.city WHERE NEW.manager IS NOT NULL) ON CONFLICT (ssn) DO NOTHING;
-      INSERT INTO transducer._person_no_manager (SELECT NEW.ssn, NEW.city WHERE NEW.manager IS NULL) ON CONFLICT (ssn) DO NOTHING;
-      DELETE FROM transducer._person_insert;
-      DELETE FROM transducer._loop;
-
-      RETURN NEW;
-END;  $$;
 
 CREATE TRIGGER source_insert_trigger
 AFTER INSERT ON transducer._person_insert
@@ -588,33 +572,7 @@ CREATE OR REPLACE FUNCTION transducer.target_city_delete_fn()
    RETURN NEW;
 END;  $$;
 
-
-CREATE OR REPLACE FUNCTION transducer.target_person_delete_fn()
-   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
-   BEGIN
-   RAISE NOTICE 'Starting DELETE from target';
-   DELETE FROM transducer._person WHERE phone IN (SELECT phone FROM transducer._person_phone_delete);
-
-   DELETE FROM transducer._person_ssn_delete;
-   DELETE FROM transducer._person_manager_delete;
-   DELETE FROM transducer._manager_delete;
-   DELETE FROM transducer._person_no_manager_delete;
-   DELETE FROM transducer._person_phone_delete;
-   DELETE FROM transducer._city_delete;
-   DELETE FROM transducer._loop;
-
-   RETURN NEW;
-END;  $$;
-
 /* */
-
-/** S->T INSERT TRIGGERS **/
-
-
-
-
-
-/** S->T DELETE TRIGGERS **/
 
 CREATE TRIGGER source_person_delete_trigger
 AFTER DELETE ON transducer._person
@@ -625,9 +583,6 @@ CREATE TRIGGER source_delete_trigger
 AFTER INSERT ON transducer._person_delete
 FOR EACH ROW
 EXECUTE FUNCTION transducer.source_delete_fn();
-
-/** T->S INSERT **/
-
 
 CREATE TRIGGER target_person_manager_insert_trigger
 AFTER INSERT ON transducer._person_manager
@@ -654,38 +609,10 @@ AFTER INSERT ON transducer._city
 FOR EACH ROW
 EXECUTE FUNCTION transducer.target_city_insert_fn();
 
-/*
-	CREATE TRIGGER target_person_insert_trigger_1
-   AFTER INSERT ON transducer._person_ssn_insert
-   FOR EACH ROW
-   EXECUTE FUNCTION transducer.target_person_insert_fn();
-*/
-CREATE TRIGGER target_person_insert_trigger_2
+CREATE TRIGGER target_person_insert_trigger
 AFTER INSERT ON transducer._person_phone_insert
 FOR EACH ROW
 EXECUTE FUNCTION transducer.target_person_insert_fn();
-/*
-   CREATE TRIGGER target_person_insert_trigger_3
-   AFTER INSERT ON transducer._person_manager_insert
-   FOR EACH ROW
-   EXECUTE FUNCTION transducer.target_person_insert_fn();
-
-   CREATE TRIGGER target_person_insert_trigger_4
-   AFTER INSERT ON transducer._manager_insert
-   FOR EACH ROW
-   EXECUTE FUNCTION transducer.target_person_insert_fn();
-
-   CREATE TRIGGER target_person_insert_trigger_5
-   AFTER INSERT ON transducer._person_no_manager_insert
-   FOR EACH ROW
-   EXECUTE FUNCTION transducer.target_person_insert_fn();
-
-   CREATE TRIGGER target_person_insert_trigger_6
-   AFTER INSERT ON transducer._city_insert
-   FOR EACH ROW
-   EXECUTE FUNCTION transducer.target_person_insert_fn();
-*/
-/** T->S DELETE **/
 
 CREATE TRIGGER target_person_ssn_delete_trigger
 AFTER DELETE ON transducer._person_ssn
@@ -722,10 +649,26 @@ AFTER INSERT ON transducer._person_phone_delete
 FOR EACH ROW
 EXECUTE FUNCTION transducer.target_person_delete_fn();
 
-/* */
-
-
 /** COMPLEX **/
+
+/** S->T INSERTS **/
+/* Then we insert into the target tables from the insert table */
+CREATE OR REPLACE FUNCTION transducer.source_insert_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+
+      INSERT INTO transducer._person_ssn VALUES (NEW.ssn) ON CONFLICT (ssn) DO NOTHING;
+      INSERT INTO transducer._city VALUES (NEW.city, NEW.country, NEW.mayor) ON CONFLICT (city) DO NOTHING;
+      INSERT INTO transducer._person_phone VALUES (NEW.ssn, NEW.phone) ON CONFLICT (ssn,phone) DO NOTHING;
+      INSERT INTO transducer._manager (SELECT NEW.manager, NEW.title WHERE NEW.manager IS NOT NULL AND NEW.title IS NOT NULL) ON CONFLICT (manager) DO NOTHING;
+      INSERT INTO transducer._person_manager (SELECT NEW.ssn, NEW.manager, NEW.city WHERE NEW.manager IS NOT NULL) ON CONFLICT (ssn) DO NOTHING;
+      INSERT INTO transducer._person_no_manager (SELECT NEW.ssn, NEW.city WHERE NEW.manager IS NULL) ON CONFLICT (ssn) DO NOTHING;
+      DELETE FROM transducer._person_insert;
+      DELETE FROM transducer._loop;
+
+      RETURN NEW;
+END;  $$;
+
 /** S->T DELETES **/
 CREATE OR REPLACE FUNCTION transducer.source_delete_fn()
    RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
@@ -760,8 +703,6 @@ CREATE OR REPLACE FUNCTION transducer.source_delete_fn()
    DELETE FROM transducer._loop;
    RETURN NEW;
 END;  $$;
-
-/** COMPLEX **/
 
 /**T->S INSERTS **/
 
@@ -833,3 +774,23 @@ CREATE OR REPLACE FUNCTION transducer.target_person_insert_fn()
    */
    RETURN NEW;
 END;  $$;
+
+/** T->S DELETE **/
+
+CREATE OR REPLACE FUNCTION transducer.target_person_delete_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+   RAISE NOTICE 'Starting DELETE from target';
+   DELETE FROM transducer._person WHERE phone IN (SELECT phone FROM transducer._person_phone_delete);
+
+   DELETE FROM transducer._person_ssn_delete;
+   DELETE FROM transducer._person_manager_delete;
+   DELETE FROM transducer._manager_delete;
+   DELETE FROM transducer._person_no_manager_delete;
+   DELETE FROM transducer._person_phone_delete;
+   DELETE FROM transducer._city_delete;
+   DELETE FROM transducer._loop;
+
+   RETURN NEW;
+END;  $$;
+
