@@ -7,7 +7,7 @@ from .context import Context
 
 class Generator:
     context: Context
-    insert_tabless: dict[str, InsertTable]
+    insert_tables: dict[str, InsertTable]
     delete_tables: dict[str, DeleteTable]
 
     def __init__(self, context: Context) -> None:
@@ -101,8 +101,28 @@ class Generator:
             transducer += delete_table.generate_function() + "\n\n"
             transducer += delete_table.generate_trigger() + "\n\n"
 
+        # STEP 10: Write complex source functions
+
+        transducer += f"/* COMPLEX SOURCE */\n\n"
+
+        transducer += f"/* S->T INSERTS */\n"
+        transducer += self.generate_source_insert()
+
         return transducer
 
     def generate_to_path(self, path: str):
         with open(path, "w") as f:
             f.write(self.generate())
+
+    def generate_source_insert(self):
+        result = ""
+        strings: list[str] = []
+
+        for mapping in self.context.target_mappings:
+            strings.append(f"""
+INSERT INTO {mapping.schema}.{mapping.target_table} VALUES ({mapping.sql(["NEW"])})
+            """)
+
+        result = "\n".join(strings)
+
+        return result;
