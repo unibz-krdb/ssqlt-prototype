@@ -8,11 +8,13 @@ class CreateTable:
     schema: str
     table: str
     sql: str
+    pkey: list[str]
 
-    def __init__(self, schema: str, table: str, sql: str) -> None:
+    def __init__(self, schema: str, table: str, sql: str, pkey: list[str]) -> None:
         self.schema = schema
         self.table = table
         self.sql = sql
+        self.pkey = pkey
 
     @classmethod
     def from_file(cls, file_path: str) -> Self:
@@ -22,4 +24,11 @@ class CreateTable:
         table = tokens[1]
         with open(file_path, "r") as f:
             sql = f.read().strip()
-        return cls(schema, table, sql)
+
+        # find primary key
+        index = sql.find("PRIMARY KEY")
+        pkeyshift = sql[index:].find("(") + 1
+        pkeyend = sql[index + pkeyshift:].find(")")
+        pkey = sql[index + pkeyshift:index + pkeyshift + pkeyend]
+
+        return cls(schema, table, sql, pkey=pkey.split(","))
