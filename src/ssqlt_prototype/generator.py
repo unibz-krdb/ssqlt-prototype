@@ -119,10 +119,18 @@ class Generator:
         strings: list[str] = []
 
         for mapping in self.context.target_mappings:
-            strings.append(f"""
-INSERT INTO {mapping.schema}.{mapping.target_table} VALUES ({mapping.sql(["NEW"])})
-            """)
+            strings.append(f"INSERT INTO {mapping.schema}.{mapping.target_table} VALUES ({mapping.sql(['NEW'])});")
+        insert_string = "\n        ".join(strings)
 
-        result = "\n".join(strings)
+        result = f"""
+CREATE OR REPLACE FUNCTION transducer.source_insert_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+        {insert_string}
+        DELETE FROM {self.context.source_table.table};
+        DELETE FROM {self.schema}._loop;
+        RETURN NEW;
+END;   $$;
+"""
 
         return result;
