@@ -119,7 +119,7 @@ class Generator:
         strings: list[str] = []
 
         for mapping in self.context.target_mappings:
-            strings.append(f"INSERT INTO {mapping.schema}.{mapping.target_table} VALUES ({mapping.sql(['new'])});")
+            strings.append(f"INSERT INTO {mapping.schema}.{mapping.target_table} VALUES ({mapping.sql(['new'])}) ON CONFLICT ({','.join('APLE')}) DO NOTHING;")
         insert_string = "\n        ".join(strings)
 
         result = f"""
