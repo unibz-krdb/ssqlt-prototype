@@ -679,21 +679,12 @@ CREATE OR REPLACE FUNCTION transducer.source_insert_fn()
    RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
    BEGIN
         INSERT INTO transducer._city VALUES (SELECT NEW.city, NEW.country, NEW.mayor FROM NEW._person);
-        INSERT INTO transducer._manager VALUES (SELECT NEW.manager, NEW.title
-FROM NEW
-WHERE NEW.manager IS NOT NULL);
-        INSERT INTO transducer._person_city VALUES (SELECT NEW.ssn, NEW.city
-FROM NEW._person);
-        INSERT INTO transducer._person_manager VALUES (SELECT NEW.ssn, NEW.manager, NEW.city
-FROM NEW._person
-WHERE NEW.manager IS NOT NULL);
-        INSERT INTO transducer._person_ssn VALUES (SELECT NEW.ssn
-FROM NEW._person);
-        INSERT INTO transducer._person_no_manager VALUES (SELECT NEW.ssn, NEW.city
-FROM NEW
-WHERE NEW.manager IS NULL);
-        INSERT INTO transducer._person_phone VALUES (SELECT NEW.ssn, NEW.phone
-FROM NEW._person);
+        INSERT INTO transducer._manager VALUES (SELECT NEW.manager, NEW.title FROM NEW WHERE NEW.manager IS NOT NULL);
+        INSERT INTO transducer._person_city VALUES (SELECT NEW.ssn, NEW.city FROM NEW._person);
+        INSERT INTO transducer._person_manager VALUES (SELECT NEW.ssn, NEW.manager, NEW.city FROM NEW._person WHERE NEW.manager IS NOT NULL);
+        INSERT INTO transducer._person_ssn VALUES (SELECT NEW.ssn FROM NEW._person);
+        INSERT INTO transducer._person_no_manager VALUES (SELECT NEW.ssn, NEW.city FROM NEW._person WHERE NEW.manager IS NULL);
+        INSERT INTO transducer._person_phone VALUES (SELECT NEW.ssn, NEW.phone FROM NEW._person);
         DELETE FROM _PERSON;
         DELETE FROM transducer._loop;
         RETURN NEW;
