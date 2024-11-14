@@ -22,6 +22,8 @@ class Constraint:
     def from_file(cls, file_path: str) -> Self:
         filename = os.path.basename(file_path)
         tokens = filename.split(".")
+        if tokens[-1] != "sql":
+            raise Exception("File does not have a .sql extension")
         schema = tokens[0]
         table = tokens[1]
         type_ = tokens[2]
