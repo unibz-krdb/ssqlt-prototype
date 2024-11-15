@@ -58,11 +58,35 @@ class Context:
         insert_string = "\n        ".join(strings)
 
         result = f"""
-CREATE OR REPLACE FUNCTION transducer.source_insert_fn()
+CREATE OR REPLACE FUNCTION {self.source_table.schema}.source_insert_fn()
    RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
    BEGIN
         {insert_string}
         DELETE FROM {self.source_table.schema}.{self.source_table.table}_insert;
+        DELETE FROM {self.source_table.schema}._loop;
+        RETURN NEW;
+END;   $$;
+"""
+
+        return result;
+
+    def generate_target_delete(self):
+        result = ""
+        strings: list[str] = []
+
+        for mapping in self.target_mappings:
+            target_table = self.get_create(schema=mapping.schema, table=mapping.target_table)
+            if target_table is None:
+                raise Exception("Mapping does not have a corresponding table")
+            strings.append(f"DELETE FROM {mapping.schema}.{mapping.target_table}_delete;")
+        delete_string = "\n        ".join(strings)
+
+        result = f"""
+CREATE OR REPLACE FUNCTION {self.source_table.schema}.target_insert_fn()
+   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+   BEGIN
+
+        {delete_string}
         DELETE FROM {self.source_table.schema}._loop;
         RETURN NEW;
 END;   $$;
