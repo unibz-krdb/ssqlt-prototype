@@ -108,6 +108,9 @@ class Generator:
         transducer += f"/* S->T INSERTS */\n"
         transducer += self.context.generate_source_insert()
 
+        transducer += f"\n/* T->S DELETE */\n"
+        transducer += self.context.generate_target_delete()
+
         return transducer
 
     def generate_to_path(self, path: str):
