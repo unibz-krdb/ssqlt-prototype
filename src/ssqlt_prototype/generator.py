@@ -106,7 +106,7 @@ class Generator:
         transducer += f"/* COMPLEX SOURCE */\n\n"
 
         transducer += f"/* S->T INSERTS */\n"
-        transducer += self.generate_source_insert()
+        transducer += self.context.generate_source_insert()
 
         return transducer
 
@@ -114,23 +114,3 @@ class Generator:
         with open(path, "w") as f:
             f.write(self.generate())
 
-    def generate_source_insert(self):
-        result = ""
-        strings: list[str] = []
-
-        for mapping in self.context.target_mappings:
-            strings.append(f"INSERT INTO {mapping.schema}.{mapping.target_table} VALUES ({mapping.sql(['new'])}) ON CONFLICT ({','.join('APLE')}) DO NOTHING;")
-        insert_string = "\n        ".join(strings)
-
-        result = f"""
-CREATE OR REPLACE FUNCTION transducer.source_insert_fn()
-   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
-   BEGIN
-        {insert_string}
-        DELETE FROM {self.context.source_table.table};
-        DELETE FROM {self.schema}._loop;
-        RETURN NEW;
-END;   $$;
-"""
-
-        return result;
