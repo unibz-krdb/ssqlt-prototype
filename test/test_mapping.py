@@ -2,7 +2,7 @@ import os
 from fixtures import resource_dir as resource_dir, input_dir as input_dir
 from string import Template
 
-from ssqlt_prototype.mapping import Mapping
+from ssqlt_prototype import Mapping
 
 
 def test_from_file(input_dir):

@@ -1,7 +1,7 @@
 import os
 from fixtures import resource_dir as resource_dir, input_dir as input_dir
 
-from ssqlt_prototype.constraint import Constraint, InsertDelete
+from ssqlt_prototype import Constraint
 
 
 def test_from_file(input_dir):
@@ -13,6 +13,6 @@ def test_from_file(input_dir):
     assert constraint.table == "_person"
     assert constraint.type_ == "cfd"
     assert constraint.index == 1
-    assert constraint.insert_delete == InsertDelete.INSERT
+    assert constraint.insert_delete == Constraint.InsertDelete.INSERT
     with open(file_path, "r") as f:
         assert constraint.generate_function() == f.read().strip()

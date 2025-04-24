@@ -1,11 +1,9 @@
 from dataclasses import dataclass
 from typing import Self
 
-from .constraint import Constraint
+from .Dataclasses import Constraint, CreateTable, Mapping
 from .context_dir import ContextDir
 from .context_file_paths import ContextFilePaths
-from .create_table import CreateTable
-from .mapping import Mapping
 
 
 @dataclass

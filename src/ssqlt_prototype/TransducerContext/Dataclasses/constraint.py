@@ -3,14 +3,13 @@ import os
 from typing import Self
 from enum import Enum
 
-
-class InsertDelete(Enum):
-    INSERT = "insert"
-    DELETE = "delete"
-
-
 @dataclass
 class Constraint:
+
+    class InsertDelete(Enum):
+        INSERT = "insert"
+        DELETE = "delete"
+
     schema: str
     table: str
     type_: str
@@ -28,7 +27,7 @@ class Constraint:
         table = tokens[1]
         type_ = tokens[2]
         index = int(tokens[3])
-        insert_delete = InsertDelete(tokens[4])
+        insert_delete = Constraint.InsertDelete(tokens[4])
         with open(file_path, "r") as f:
             sql = f.read().strip()
         sql = sql[sql.index("$$") :]

@@ -1,8 +1,6 @@
 from typing import Self
 
-from .insert_table import InsertTable
-from .delete_table import DeleteTable
-from .context import Context
+from .TransducerContext import Context, InsertTable, DeleteTable
 
 
 class Generator:
@@ -12,11 +10,21 @@ class Generator:
 
     def __init__(self, context: Context) -> None:
         self.context = context
-        self.insert_tables = {context.source_table.table: InsertTable(source=context.source_table, mapping=context.source_mapping)}
-        self.delete_tables = {context.source_table.table: DeleteTable(source=context.source_table)}
+        self.insert_tables = {
+            context.source_table.table: InsertTable(
+                source=context.source_table, mapping=context.source_mapping
+            )
+        }
+        self.delete_tables = {
+            context.source_table.table: DeleteTable(source=context.source_table)
+        }
         self.schema = context.source_table.schema
         for table in context.target_tables:
-            mapping = next(mapping for mapping in context.target_mappings if mapping.target_table.lower() == table.table.lower())
+            mapping = next(
+                mapping
+                for mapping in context.target_mappings
+                if mapping.target_table.lower() == table.table.lower()
+            )
             self.insert_tables[table.table] = InsertTable(source=table, mapping=mapping)
             self.delete_tables[table.table] = DeleteTable(source=table)
 
@@ -81,7 +89,9 @@ class Generator:
 
         transducer += "/* LOOP PREVENTION MECHANISM */\n\n"
 
-        transducer += f"CREATE TABLE {self.schema}._LOOP (loop_start INT NOT NULL );\n\n"
+        transducer += (
+            f"CREATE TABLE {self.schema}._LOOP (loop_start INT NOT NULL );\n\n"
+        )
 
         # STEP 8: Write insert functions
 
@@ -116,4 +126,3 @@ class Generator:
     def generate_to_path(self, path: str):
         with open(path, "w") as f:
             f.write(self.generate())
-

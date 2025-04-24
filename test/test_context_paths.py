@@ -1,4 +1,4 @@
-from ssqlt_prototype.context_dir import ContextDir
+from ssqlt_prototype.TransducerContext.context_dir import ContextDir
 import os
 
 from fixtures import resource_dir as resource_dir, input_dir as input_dir

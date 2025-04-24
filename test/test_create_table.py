@@ -1,8 +1,7 @@
 import os
 from fixtures import resource_dir as resource_dir, input_dir as input_dir
 
-from ssqlt_prototype.create_table import CreateTable
-
+from ssqlt_prototype import CreateTable
 
 def test_from_file(input_dir):
     file_path = os.path.join(input_dir, "create", "source", "transducer._person.sql")
