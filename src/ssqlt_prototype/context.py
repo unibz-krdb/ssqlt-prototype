@@ -20,17 +20,17 @@ class Context:
     def __init__(self, context_files: ContextFilePaths) -> None:
         self.source_table = CreateTable.from_file(context_files.source_create)
         self.target_tables = list(
-            map(lambda f: CreateTable.from_file(f), context_files.target_creates)
+            map(CreateTable.from_file, context_files.target_creates)
         )
         self.source_constraints = list(
-            map(lambda f: Constraint.from_file(f), context_files.source_constraints)
+            map(Constraint.from_file, context_files.source_constraints)
         )
         self.target_constraints = list(
-            map(lambda f: Constraint.from_file(f), context_files.target_constraints)
+            map(Constraint.from_file, context_files.target_constraints)
         )
         self.source_mapping = Mapping.from_file(context_files.target_to_source_mapping)
         self.target_mappings = list(
-            map(lambda f: Mapping.from_file(f), context_files.source_to_target_mappings)
+            map(Mapping.from_file, context_files.source_to_target_mappings)
         )
 
     @classmethod
@@ -51,10 +51,14 @@ class Context:
         strings: list[str] = []
 
         for mapping in self.target_mappings:
-            target_table = self.get_create(schema=mapping.schema, table=mapping.target_table)
+            target_table = self.get_create(
+                schema=mapping.schema, table=mapping.target_table
+            )
             if target_table is None:
                 raise Exception("Mapping does not have a corresponding table")
-            strings.append(f"INSERT INTO {mapping.schema}.{mapping.target_table} VALUES ({mapping.sql(['new'])}) ON CONFLICT ({','.join(target_table.pkey)}) DO NOTHING;")
+            strings.append(
+                f"INSERT INTO {mapping.schema}.{mapping.target_table} VALUES ({mapping.sql(['new'])}) ON CONFLICT ({','.join(target_table.pkey)}) DO NOTHING;"
+            )
         insert_string = "\n        ".join(strings)
 
         result = f"""
@@ -68,17 +72,21 @@ CREATE OR REPLACE FUNCTION {self.source_table.schema}.source_insert_fn()
 END;   $$;
 """
 
-        return result;
+        return result
 
     def generate_target_delete(self):
         result = ""
         strings: list[str] = []
 
         for mapping in self.target_mappings:
-            target_table = self.get_create(schema=mapping.schema, table=mapping.target_table)
+            target_table = self.get_create(
+                schema=mapping.schema, table=mapping.target_table
+            )
             if target_table is None:
                 raise Exception("Mapping does not have a corresponding table")
-            strings.append(f"DELETE FROM {mapping.schema}.{mapping.target_table}_delete;")
+            strings.append(
+                f"DELETE FROM {mapping.schema}.{mapping.target_table}_delete;"
+            )
         delete_string = "\n        ".join(strings)
 
         result = f"""
@@ -92,4 +100,4 @@ CREATE OR REPLACE FUNCTION {self.source_table.schema}.target_insert_fn()
 END;   $$;
 """
 
-        return result;
+        return result
