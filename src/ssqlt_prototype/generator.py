@@ -82,6 +82,7 @@ class Generator:
         for table in self.insert_tables:
             insert_table = self.insert_tables[table]
             transducer += insert_table.create_sql() + "\n\n"
+            transducer += insert_table.join_create_sql() + "\n\n"
 
         # STEP 6: Write delete table
 
@@ -90,6 +91,7 @@ class Generator:
         for table in self.delete_tables:
             delete_table = self.delete_tables[table]
             transducer += delete_table.createSql() + "\n\n"
+            transducer += delete_table.join_create_sql() + "\n\n"
 
         # STEP 7: Loop Prevention Mechanism
 
