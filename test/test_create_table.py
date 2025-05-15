@@ -1,5 +1,5 @@
 import os
-from fixtures import resource_dir as resource_dir, input_dir as input_dir
+from fixtures import resource_dir as resource_dir, single_create_input_dir as input_dir
 
 from ssqlt_prototype import CreateTable
 

@@ -1,9 +1,9 @@
 import os
-from fixtures import resource_dir as resource_dir, input_dir as input_dir
+from fixtures import resource_dir as resource_dir, single_create_input_dir as input_dir
 from string import Template
+import pytest
 
 from ssqlt_prototype import Mapping
-
 
 def test_from_file(input_dir):
     file_path = os.path.join(
