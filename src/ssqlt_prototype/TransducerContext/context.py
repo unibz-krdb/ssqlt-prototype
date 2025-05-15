@@ -8,15 +8,17 @@ from .context_file_paths import ContextFilePaths
 
 @dataclass
 class Context:
-    source_table: CreateTable
+    source_tables: list[CreateTable]
     target_tables: list[CreateTable]
     source_constraints: list[Constraint]
     target_constraints: list[Constraint]
-    source_mapping: Mapping
+    source_mappings: list[Mapping]
     target_mappings: list[Mapping]
 
     def __init__(self, context_files: ContextFilePaths) -> None:
-        self.source_table = CreateTable.from_file(context_files.source_create)
+        self.source_tables = list(
+            map(CreateTable.from_file, context_files.source_creates)
+        )
         self.target_tables = list(
             map(CreateTable.from_file, context_files.target_creates)
         )
@@ -26,7 +28,9 @@ class Context:
         self.target_constraints = list(
             map(Constraint.from_file, context_files.target_constraints)
         )
-        self.source_mapping = Mapping.from_file(context_files.target_to_source_mapping)
+        self.source_mappings = list(
+            map(Mapping.from_file, context_files.target_to_source_mappings)
+        )
         self.target_mappings = list(
             map(Mapping.from_file, context_files.source_to_target_mappings)
         )
@@ -37,8 +41,9 @@ class Context:
         return cls(ContextFilePaths(context_dirs))
 
     def get_create(self, schema: str, table: str) -> None | CreateTable:
-        if self.source_table.schema == schema and self.source_table.table == table:
-            return self.source_table
+        for source_table in self.source_tables:
+            if source_table.schema == schema and source_table.table == table:
+                return source_table
         for target_table in self.target_tables:
             if target_table.schema == schema and target_table.table == table:
                 return target_table
@@ -60,12 +65,12 @@ class Context:
         insert_string = "\n        ".join(strings)
 
         result = f"""
-CREATE OR REPLACE FUNCTION {self.source_table.schema}.source_insert_fn()
+CREATE OR REPLACE FUNCTION {self.source_tables.schema}.source_insert_fn()
    RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
    BEGIN
         {insert_string}
-        DELETE FROM {self.source_table.schema}.{self.source_table.table}_insert;
-        DELETE FROM {self.source_table.schema}._loop;
+        DELETE FROM {self.source_tables.schema}.{self.source_tables.table}_insert;
+        DELETE FROM {self.source_tables.schema}._loop;
         RETURN NEW;
 END;   $$;
 """
@@ -88,12 +93,12 @@ END;   $$;
         delete_string = "\n        ".join(strings)
 
         result = f"""
-CREATE OR REPLACE FUNCTION {self.source_table.schema}.target_insert_fn()
+CREATE OR REPLACE FUNCTION {self.source_tables.schema}.target_insert_fn()
    RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
    BEGIN
 
         {delete_string}
-        DELETE FROM {self.source_table.schema}._loop;
+        DELETE FROM {self.source_tables.schema}._loop;
         RETURN NEW;
 END;   $$;
 """

@@ -5,11 +5,11 @@ from .context_dir import ContextDir
 
 @dataclass
 class ContextFilePaths:
-    source_create: str
+    source_creates: list[str]
     target_creates: list[str]
     source_constraints: list[str]
     target_constraints: list[str]
-    target_to_source_mapping: str
+    target_to_source_mappings: list[str]
     source_to_target_mappings: list[str]
 
     def __init__(self, context_paths: ContextDir) -> None:
@@ -19,11 +19,9 @@ class ContextFilePaths:
             raise FileNotFoundError(
                 f"No create files found in {context_paths.create_source_dir}"
             )
-        if len(files) > 1:
-            raise FileNotFoundError(
-                f"Multiple create files found in {context_paths.create_source_dir}"
-            )
-        self.source_create = os.path.join(context_paths.create_source_dir, files[0])
+        self.source_creates = list(
+            map(lambda f: os.path.join(context_paths.create_source_dir, f), files)
+        )
 
         # Get target_creates files
         files = os.listdir(context_paths.create_target_dir)
@@ -53,12 +51,8 @@ class ContextFilePaths:
             raise FileNotFoundError(
                 f"No mapping files found in {context_paths.mappings_source_dir}"
             )
-        if len(files) > 1:
-            raise FileNotFoundError(
-                f"Multiple mapping files found in {context_paths.mappings_source_dir}"
-            )
-        self.target_to_source_mapping = os.path.join(
-            context_paths.mappings_source_dir, files[0]
+        self.target_to_source_mappings = list(
+            map(lambda f: os.path.join(context_paths.mappings_source_dir, f), files)
         )
 
         # Get source_to_target_mappings files

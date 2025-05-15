@@ -10,15 +10,20 @@ class Generator:
 
     def __init__(self, context: Context) -> None:
         self.context = context
-        self.insert_tables = {
-            context.source_table.table: InsertTable(
-                source=context.source_table, mapping=context.source_mapping
+        self.insert_tables = {}
+        self.delete_tables = {}
+
+        for table in context.source_tables:
+            self.schema = table.schema
+
+            mapping = next(
+                mapping
+                for mapping in context.source_mappings
+                if mapping.target_table.lower() == table.table.lower()
             )
-        }
-        self.delete_tables = {
-            context.source_table.table: DeleteTable(source=context.source_table)
-        }
-        self.schema = context.source_table.schema
+            self.insert_tables[table.table] = InsertTable(source=table, mapping=mapping)
+            self.delete_tables[table.table] = DeleteTable(source=table)
+
         for table in context.target_tables:
             mapping = next(
                 mapping
@@ -44,7 +49,7 @@ class Generator:
 
         transducer += "/* SOURCE TABLE */\n\n"
 
-        transducer += self.context.source_table.sql + "\n\n"
+        transducer += self.context.source_tables.sql + "\n\n"
 
         # STEP 2: Write source constraints
 
