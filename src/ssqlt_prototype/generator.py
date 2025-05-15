@@ -47,9 +47,10 @@ class Generator:
 
         # STEP 1: Write source table create
 
-        transducer += "/* SOURCE TABLE */\n\n"
+        transducer += "/* SOURCE TABLES */\n\n"
 
-        transducer += self.context.source_tables.sql + "\n\n"
+        for table in self.context.source_tables:
+            transducer += table.sql + "\n\n"
 
         # STEP 2: Write source constraints
 

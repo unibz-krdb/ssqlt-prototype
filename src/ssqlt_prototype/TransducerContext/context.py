@@ -65,12 +65,12 @@ class Context:
         insert_string = "\n        ".join(strings)
 
         result = f"""
-CREATE OR REPLACE FUNCTION {self.source_tables.schema}.source_insert_fn()
+CREATE OR REPLACE FUNCTION {self.source_tables[0].schema}.source_insert_fn()
    RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
    BEGIN
         {insert_string}
-        DELETE FROM {self.source_tables.schema}.{self.source_tables.table}_insert;
-        DELETE FROM {self.source_tables.schema}._loop;
+        DELETE FROM {self.source_tables[0].schema}.{self.source_tables[0].table}_insert;
+        DELETE FROM {self.source_tables[0].schema}._loop;
         RETURN NEW;
 END;   $$;
 """
@@ -93,12 +93,12 @@ END;   $$;
         delete_string = "\n        ".join(strings)
 
         result = f"""
-CREATE OR REPLACE FUNCTION {self.source_tables.schema}.target_insert_fn()
+CREATE OR REPLACE FUNCTION {self.source_tables[0].schema}.target_insert_fn()
    RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
    BEGIN
 
         {delete_string}
-        DELETE FROM {self.source_tables.schema}._loop;
+        DELETE FROM {self.source_tables[0].schema}._loop;
         RETURN NEW;
 END;   $$;
 """
