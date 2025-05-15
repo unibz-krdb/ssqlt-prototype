@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Self
 
-from .Dataclasses import Constraint, CreateTable, Mapping
+from .Dataclasses import Constraint, CreateTable, Mapping, Unified
 from .context_dir import ContextDir
 from .context_file_paths import ContextFilePaths
 
@@ -14,6 +14,7 @@ class Context:
     target_constraints: list[Constraint]
     source_mappings: list[Mapping]
     target_mappings: list[Mapping]
+    unified: Unified
 
     def __init__(self, context_files: ContextFilePaths) -> None:
         self.source_tables = list(
@@ -33,6 +34,11 @@ class Context:
         )
         self.target_mappings = list(
             map(Mapping.from_file, context_files.source_to_target_mappings)
+        )
+        self.unified = Unified.from_files(
+            attribute_path=context_files.unified_attributes,
+            from_mapping_paths=context_files.unified_from_mappings,
+            to_mapping_paths=context_files.unified_to_mappings,
         )
 
     @classmethod
