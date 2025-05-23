@@ -5,7 +5,7 @@ from string import Template
 
 
 @dataclass
-class Unified:
+class Universal:
     attributes: str
     to_mappings: dict[str, Template]
     from_mappings: dict[str, Template]
