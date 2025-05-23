@@ -12,8 +12,8 @@ class ContextFilePaths:
     target_to_source_mappings: list[str]
     source_to_target_mappings: list[str]
     universal_attributes: str
-    universal_from_mappings: list[str]
-    universal_to_mappings: list[str]
+    universal_mappings_from: list[str]
+    universal_mappings_to: list[str]
 
     def __init__(self, context_paths: ContextDir) -> None:
         # Get source_create file
@@ -68,21 +68,21 @@ class ContextFilePaths:
             map(lambda f: os.path.join(context_paths.mappings_target_dir, f), files)
         )
 
-        # Get combined_attributes file
+        # Get universal attributes file
         self.universal_attributes = os.path.join(
-            context_paths.universal_dir, "attributes.sql"
+            context_paths.create_universal_dir, "attributes.sql"
         )
 
         # Get combined_from_mappings files
-        files = os.listdir(context_paths.universal_mappings_from_dir)
-        self.universal_from_mappings = list(
-            map(lambda f: os.path.join(context_paths.universal_mappings_from_dir, f), files)
+        files = os.listdir(context_paths.mappings_from_universal_dir)
+        self.universal_mappings_from = list(
+            map(lambda f: os.path.join(context_paths.mappings_from_universal_dir, f), files)
         )
 
         # Get combined_to_mappings files
-        files = os.listdir(context_paths.universal_mappings_to_dir)
-        self.universal_to_mappings = list(
-            map(lambda f: os.path.join(context_paths.universal_mappings_to_dir, f), files)
+        files = os.listdir(context_paths.mappings_to_universal_dir)
+        self.universal_mappings_to = list(
+            map(lambda f: os.path.join(context_paths.mappings_to_universal_dir, f), files)
         )
 
     @classmethod

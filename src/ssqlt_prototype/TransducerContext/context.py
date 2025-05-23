@@ -37,8 +37,8 @@ class Context:
         )
         self.universal = Universal.from_files(
             attribute_path=context_files.universal_attributes,
-            from_mapping_paths=context_files.universal_from_mappings,
-            to_mapping_paths=context_files.universal_to_mappings,
+            from_mapping_paths=context_files.universal_mappings_from,
+            to_mapping_paths=context_files.universal_mappings_to,
         )
 
     @classmethod
