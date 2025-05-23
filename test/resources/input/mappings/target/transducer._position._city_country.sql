@@ -1,0 +1,2 @@
+SELECT city,country
+FROM _POSITION

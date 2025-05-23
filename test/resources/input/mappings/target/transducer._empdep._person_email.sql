@@ -1,0 +1,2 @@
+SELECT ssn, email
+FROM _EMPDEP
