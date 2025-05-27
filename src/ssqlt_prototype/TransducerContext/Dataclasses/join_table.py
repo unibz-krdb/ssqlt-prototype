@@ -27,39 +27,51 @@ class JoinTable:
     def create_delete_sql(self) -> str:
         return self._create_sql(self.delete_tablename)
 
+    def generate_insert_function(self) -> str:
+        return self._generate_function(self.insert_tablename)
+
+    def generate_delete_function(self) -> str:
+        return self._generate_function(self.delete_tablename)
+
     def _generate_function(self, tablename: str) -> str:
 
         # Function Header
-        sql = f"""
-        CREATE OR REPLACE FUNCTION {self.create_table.schema}.{tablename}_FN()
-        RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
-        BEGIN
-        """
+        sql = f"""CREATE OR REPLACE FUNCTION {self.create_table.schema}.{tablename}_FN()
+RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+BEGIN
+"""
 
         # Create temporary table
         sql += f"""
-        create temporary table temp_table(
-        {self.universal.attributes}
-        );
-        """
-
-        # Insert into temp table
-        #to_sql = self.universal.mappings[self.createTable.source.table].to_sql_template.substitute()
-        #sql += f""" {to_sql} + "\n"
-        #"""
-
-        """
-INSERT INTO temp_table (
-SELECT ssn, name, phone, email, dep_name, dep_address, city, country
-FROM transducer._POSITION_INSERT
-NATURAL LEFT OUTER JOIN transducer._EMPDEP
-
+create temporary table temp_table(
+{self.universal.attributes}
 );
+"""
 
-INSERT INTO transducer._EMPDEP_INSERT_JOIN (SELECT ssn, name, phone, email, dep_name, dep_address FROM temp_table);
-INSERT INTO transducer._loop VALUES (1);
-INSERT INTO transducer._POSITION_INSERT_JOIN (SELECT dep_address, city, country FROM temp_table);
+        mappings = self.universal.mappings[self.create_table.table]
 
+        to_sql = self.universal.mappings[self.create_table.table].to_sql_template.substitute({"suffix": "_INSERT"})
+        sql += f"\nINSERT INTO temp_table ({to_sql});\n"
+
+        # Insert partners
+
+        for partner_table in mappings.partner_table_names:
+            partner_sql = self.universal.mappings[
+                partner_table
+            ].from_sql_template.substitute({"universal_tablename": "temp_table"})
+            sql += f"\nINSERT INTO {self.create_table.schema}.{partner_table}_INSERT_JOIN ({partner_sql});"
+
+        # Inser loop
+
+        sql += "\nINSERT INTO transducer._loop VALUES (1);"
+
+        # Insert into the join table
+
+        sql += f"\nINSERT INTO {self.create_table.schema}.{tablename} ({mappings.from_sql_template.substitute({'universal_tablename': 'temp_table'})});"
+
+        # Conclude
+
+        sql += """\n
 DELETE FROM temp_table;
 DROP TABLE temp_table;
 RETURN NEW;
