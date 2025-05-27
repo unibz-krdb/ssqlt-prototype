@@ -18,7 +18,7 @@ class UniversalMapping:
 
         to_filename = os.path.basename(to_file_path)
         tokens = to_filename.split(".")
-        source_tables = tokens[1:-2]
+        source_tables = tokens[0:-2]
         target_table = tokens[-2]
         with open(to_file_path, "r") as f:
             to_sql_template = Template(f.read().strip())
