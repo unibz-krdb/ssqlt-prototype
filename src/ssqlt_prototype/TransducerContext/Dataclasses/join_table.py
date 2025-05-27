@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Literal
 
 from .create_table import CreateTable
 from .universal import Universal
@@ -28,12 +29,12 @@ class JoinTable:
         return self._create_sql(self.delete_tablename)
 
     def generate_insert_function(self) -> str:
-        return self._generate_function(self.insert_tablename)
+        return self._generate_function(self.insert_tablename, suffix="_INSERT")
 
     def generate_delete_function(self) -> str:
-        return self._generate_function(self.delete_tablename)
+        return self._generate_function(self.delete_tablename, suffix="_DELETE")
 
-    def _generate_function(self, tablename: str) -> str:
+    def _generate_function(self, tablename: str, suffix: str) -> str:
 
         # Function Header
         sql = f"""CREATE OR REPLACE FUNCTION {self.create_table.schema}.{tablename}_FN()
@@ -50,7 +51,7 @@ create temporary table temp_table(
 
         mappings = self.universal.mappings[self.create_table.table]
 
-        to_sql = self.universal.mappings[self.create_table.table].to_sql_template.substitute({"suffix": "_INSERT"})
+        to_sql = self.universal.mappings[self.create_table.table].to_sql_template.substitute({"suffix": suffix})
         sql += f"\nINSERT INTO temp_table ({to_sql});\n"
 
         # Insert partners
@@ -59,7 +60,7 @@ create temporary table temp_table(
             partner_sql = self.universal.mappings[
                 partner_table
             ].from_sql_template.substitute({"universal_tablename": "temp_table"})
-            sql += f"\nINSERT INTO {self.create_table.schema}.{partner_table}_INSERT_JOIN ({partner_sql});"
+            sql += f"\nINSERT INTO {self.create_table.schema}.{partner_table}{suffix}_JOIN ({partner_sql});"
 
         # Inser loop
 
@@ -78,3 +79,17 @@ RETURN NEW;
 END;  $$;
         """
         return sql
+
+    def generate_trigger(self, tablename: str, _type: Literal["INSERT"] | Literal["DELETE"]) -> str:
+        sql = f"""CREATE TRIGGER {tablename}_trigger
+AFTER INSERT ON {self.create_table.schema}.{self.create_table.table}_{_type}
+FOR EACH ROW
+EXECUTE FUNCTION {self.create_table.schema}.{tablename}_fn();
+        """
+        return sql
+
+    def generate_insert_trigger(self) -> str:
+        return self.generate_trigger(self.insert_tablename, "INSERT")
+
+    def generate_delete_trigger(self) -> str:
+        return self.generate_trigger(self.delete_tablename, "DELETE")

@@ -1,1 +1,1 @@
-SELECT ssn, email FROM $0
+SELECT ssn, email FROM ${universal_tablename}

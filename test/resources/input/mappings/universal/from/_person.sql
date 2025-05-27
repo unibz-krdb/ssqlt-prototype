@@ -1,1 +1,1 @@
-SELECT ssn, name, dep_name FROM $0
+SELECT ssn, name, dep_name FROM ${universal_tablename}

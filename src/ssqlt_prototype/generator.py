@@ -113,11 +113,11 @@ class Generator:
 
         for table in self.insert_tables:
             insert_table = self.insert_tables[table]
-            transducer += insert_table.generate_function() + "\n\n"
+            transducer += insert_table.generate_function() + "\n"
             transducer += insert_table.generate_trigger() + "\n\n"
             join_table = self.join_tables[table]
-            transducer += join_table.generate_insert_function() + "\n\n"
-
+            transducer += join_table.generate_insert_function() + "\n"
+            transducer += join_table.generate_insert_trigger() + "\n\n"
 
         # STEP 9: Write delete functions
 
@@ -125,8 +125,11 @@ class Generator:
 
         for table in self.insert_tables:
             delete_table = self.delete_tables[table]
-            transducer += delete_table.generate_function() + "\n\n"
+            transducer += delete_table.generate_function() + "\n"
             transducer += delete_table.generate_trigger() + "\n\n"
+            join_table = self.join_tables[table]
+            transducer += join_table.generate_delete_function() + "\n"
+            transducer += join_table.generate_delete_trigger() + "\n\n"
 
         # STEP 10: Write complex source functions
 

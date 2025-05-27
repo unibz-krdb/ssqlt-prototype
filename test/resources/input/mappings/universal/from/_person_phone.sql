@@ -1,1 +1,1 @@
-SELECT ssn, phone FROM $0
+SELECT ssn, phone FROM ${universal_tablename}

@@ -1,1 +1,1 @@
-SELECT city, country FROM $0
+SELECT city, country FROM ${universal_tablename}

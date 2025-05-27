@@ -1,1 +1,1 @@
-SELECT dep_name, dep_address FROM $0
+SELECT dep_name, dep_address FROM ${universal_tablename}
