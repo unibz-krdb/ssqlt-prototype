@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Self
 
-from .Dataclasses import Constraint, CreateTable, Mapping, Universal
+from .Dataclasses import Constraint, CreateTable, Mapping, Universal, JoinTable
 from .context_dir import ContextDir
 from .context_file_paths import ContextFilePaths
 

@@ -22,12 +22,6 @@ class InsertTable:
         sql += "WHERE 1<>1;"
         return sql
 
-    def join_create_sql(self) -> str:
-        sql = f"CREATE TABLE {self.source.schema}.{self.table}_JOIN AS\n"
-        sql += f"SELECT * FROM {self.source.schema}.{self.source.table}\n"
-        sql += "WHERE 1<>1;"
-        return sql
-
     def generate_function(self) -> str:
         sql = f"""CREATE OR REPLACE FUNCTION {self.source.schema}.{self.table}_fn()
    RETURNS TRIGGER LANGUAGE PLPGSQL AS $$

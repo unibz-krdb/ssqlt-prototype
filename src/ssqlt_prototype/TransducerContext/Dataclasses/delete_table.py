@@ -13,14 +13,8 @@ class DeleteTable:
         self.source = source
         self.table = source.table + "_DELETE"
 
-    def createSql(self) -> str:
+    def create_sql(self) -> str:
         sql = f"CREATE TABLE {self.source.schema}.{self.table} AS\n"
-        sql += f"SELECT * FROM {self.source.schema}.{self.source.table}\n"
-        sql += "WHERE 1<>1;"
-        return sql
-
-    def join_create_sql(self) -> str:
-        sql = f"CREATE TABLE {self.source.schema}.{self.table}_JOIN AS\n"
         sql += f"SELECT * FROM {self.source.schema}.{self.source.table}\n"
         sql += "WHERE 1<>1;"
         return sql
