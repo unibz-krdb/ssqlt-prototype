@@ -1,13 +1,22 @@
 import os
 from dataclasses import dataclass
 from typing import Self
-from string import Template
+
 from .universal_mapping import UniversalMapping
+
 
 @dataclass
 class Universal:
     attributes: str
     mappings: dict[str, UniversalMapping]
+
+    @staticmethod
+    def get_tablename(file_path: str) -> str:
+        """Return target tablename."""
+        filename = os.path.basename(file_path)
+        tokens = filename.split(".")
+        target_table = tokens[-2]
+        return target_table
 
     @classmethod
     def from_files(
@@ -16,27 +25,21 @@ class Universal:
         from_mapping_paths: list[str],
         to_mapping_paths: list[str],
     ) -> Self:
+
         with open(attribute_path, "r") as f:
             attributes = f.read().strip()
 
-        to_mappings = {}
-        for mapping_path in to_mapping_paths:
-            filename = os.path.basename(mapping_path)
-            tokens = filename.split(".")
-            target_table = tokens[0]
-            with open(mapping_path, "r") as f:
-                sql_template = Template(f.read().strip())
-            to_mappings[f"{target_table}"] = sql_template
+        mappings = {}
+        for from_mapping_path in from_mapping_paths:
+            mappings[cls.get_tablename(from_mapping_path)] = [from_mapping_path]
 
-        from_mappings = {}
-        for mapping_path in from_mapping_paths:
-            filename = os.path.basename(mapping_path)
-            tokens = filename.split(".")
-            source_table = tokens[0]
-            with open(mapping_path, "r") as f:
-                sql_template = Template(f.read().strip())
-            from_mappings[f"{source_table}"] = sql_template
+        for to_mapping_path in to_mapping_paths:
+            mappings[cls.get_tablename(to_mapping_path)].append(to_mapping_path)
 
         return cls(
-            attributes=attributes, to_mappings=to_mappings, from_mappings=from_mappings
+            attributes=attributes,
+            mappings={
+                table_name: UniversalMapping.from_files(from_path, to_path)
+                for table_name, (from_path, to_path) in mappings.items()
+            },
         )
