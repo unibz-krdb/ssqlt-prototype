@@ -2,13 +2,12 @@ import os
 from dataclasses import dataclass
 from typing import Self
 from string import Template
-
+from .universal_mapping import UniversalMapping
 
 @dataclass
 class Universal:
     attributes: str
-    to_mappings: dict[str, Template]
-    from_mappings: dict[str, Template]
+    mappings: dict[str, UniversalMapping]
 
     @classmethod
     def from_files(
