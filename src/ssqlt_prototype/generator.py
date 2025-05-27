@@ -1,12 +1,13 @@
 from typing import Self
 
-from .TransducerContext import Context, InsertTable, DeleteTable
+from .TransducerContext import Context, InsertTable, DeleteTable, JoinTable
 
 
 class Generator:
     context: Context
     insert_tables: dict[str, InsertTable]
     delete_tables: dict[str, DeleteTable]
+    join_tables: dict[str, JoinTable]
 
     def __init__(self, context: Context) -> None:
         self.context = context
@@ -32,6 +33,13 @@ class Generator:
             )
             self.insert_tables[table.table] = InsertTable(source=table, mapping=mapping)
             self.delete_tables[table.table] = DeleteTable(source=table)
+
+        self.join_tables = {}
+        for create_table in self.context.source_tables + self.context.target_tables:
+            self.join_tables[create_table.table] = JoinTable(
+                create_table=create_table,
+                universal=self.context.universal,
+            )
 
     @classmethod
     def from_dir(cls, path: str) -> Self:
@@ -80,18 +88,16 @@ class Generator:
         transducer += "/* INSERT TABLES */\n\n"
 
         for table in self.insert_tables:
-            insert_table = self.insert_tables[table]
-            transducer += insert_table.create_sql() + "\n\n"
-            transducer += insert_table.join_create_sql() + "\n\n"
+            transducer += self.insert_tables[table].create_sql() + "\n\n"
+            transducer += self.join_tables[table].create_insert_sql() + "\n\n"
 
         # STEP 6: Write delete table
 
         transducer += "/* DELETE TABLES */\n\n"
 
         for table in self.delete_tables:
-            delete_table = self.delete_tables[table]
-            transducer += delete_table.createSql() + "\n\n"
-            transducer += delete_table.join_create_sql() + "\n\n"
+            transducer += self.delete_tables[table].create_sql() + "\n\n"
+            transducer += self.join_tables[table].create_delete_sql() + "\n\n"
 
         # STEP 7: Loop Prevention Mechanism
 
@@ -109,6 +115,9 @@ class Generator:
             insert_table = self.insert_tables[table]
             transducer += insert_table.generate_function() + "\n\n"
             transducer += insert_table.generate_trigger() + "\n\n"
+            join_table = self.join_tables[table]
+            transducer += join_table.generate_insert_function() + "\n\n"
+
 
         # STEP 9: Write delete functions
 
