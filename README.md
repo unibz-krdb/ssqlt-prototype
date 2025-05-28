@@ -197,3 +197,7 @@ L mappings
 
 Check `test/resources/input` for an example input directory.
 Running `pytest` will execute the Semantic SQL Transudcer on this directory, resulting in `output.sql` being produced in the project directory.
+
+## Contribution
+
+This project is still too young to accept outside contribution, but soon!
