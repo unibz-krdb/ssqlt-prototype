@@ -1,1 +1,0 @@
-SELECT $S0.ssn, $S0.phone FROM $S0._person
