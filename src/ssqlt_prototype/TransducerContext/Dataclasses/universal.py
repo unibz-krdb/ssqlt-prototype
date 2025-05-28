@@ -15,7 +15,7 @@ class Universal:
         """Return target tablename."""
         filename = os.path.basename(file_path)
         tokens = filename.split(".")
-        target_table = tokens[-2]
+        target_table = tokens[0]
         return target_table
 
     @classmethod
