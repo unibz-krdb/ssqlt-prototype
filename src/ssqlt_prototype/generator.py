@@ -109,7 +109,7 @@ class Generator:
 
         # STEP 8: Write insert functions
 
-        transducer += f"/* INSERT FUNCTIONS & TRIGGERS */\n\n"
+        transducer += "/* INSERT FUNCTIONS & TRIGGERS */\n\n"
 
         for table in self.insert_tables:
             insert_table = self.insert_tables[table]
@@ -121,7 +121,7 @@ class Generator:
 
         # STEP 9: Write delete functions
 
-        transducer += f"/* DELETE FUNCTIONS & TRIGGERS */\n\n"
+        transducer += "/* DELETE FUNCTIONS & TRIGGERS */\n\n"
 
         for table in self.insert_tables:
             delete_table = self.delete_tables[table]
@@ -133,12 +133,12 @@ class Generator:
 
         # STEP 10: Write complex source functions
 
-        transducer += f"/* COMPLEX SOURCE */\n\n"
+        transducer += "/* COMPLEX SOURCE */\n\n"
 
-        transducer += f"/* S->T INSERTS */\n"
+        transducer += "/* S->T INSERTS */\n"
         transducer += self.context.generate_source_insert()
 
-        transducer += f"\n/* T->S DELETE */\n"
+        transducer += "\n/* T->S DELETE */\n"
         transducer += self.context.generate_target_delete()
 
         return transducer
