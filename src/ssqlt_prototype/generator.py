@@ -1,6 +1,6 @@
 from typing import Self
 
-from .TransducerContext import Context, InsertTable, DeleteTable, JoinTable
+from .TransducerContext import Context, DeleteTable, InsertTable, JoinTable
 
 
 class Generator:
