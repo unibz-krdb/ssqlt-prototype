@@ -27,14 +27,14 @@ pytest
 
 ### Input
 
-The Semantic SQL Transducer takes *sql* files as input. Three sets of sql input files for both source and target databases are required. 
-There is a strict naming convention for the inputted SQL files. This is so metadata can be stored within the name itself, removing the need for an additional metadata file.
+The Semantic SQL Transducer takes *sql* files as input. Three sets of SQL input files for the source, target and universal databases are required. 
+There is a strict naming convention for these SQL files. This is so metadata can be stored within the name itself, removing the need for an additional metadata file.
 
 *NB: Table names must fully qualified, i.e., {schema}.{tablename}, not just {tablename}*
 
 **1. Create**
 
-For the *source* schema, this is a single *create* file containing a create statement describing the table, as well as any key alterations.
+For the *source* database, there are one-to-many *create* files containing a create statement describing the table, as well as any key alterations.
 
 e.g., 
 ``` sql
@@ -52,7 +52,7 @@ CREATE TABLE transducer._PERSON
 ALTER TABLE transducer._person ADD PRIMARY KEY (ssn,phone);
 ```
 
-For the *target* schema, there are one-to-many *create* files, each corresponding to a table in the *target* schema. These each contain a create statement which references the table from the *source* schema.
+For the *target* database, there are one-to-many *create* files, each corresponding to a table in the *target* database. These each contain a create statement which references table(s) from the *source* database.
 
 e.g., 
 ``` sql
@@ -65,6 +65,19 @@ ADD FOREIGN KEY (mayor) REFERENCES transducer._person_ssn(ssn);
 
 ```
 %SCHEMA%.%TABLENAME%.sql
+```
+
+The *universal* folder contains a single file named `attributes.sql`. This contains the attributes for a universal table, e.g.,
+
+``` sql
+ssn  VARCHAR(100),
+name  VARCHAR(100),
+phone  VARCHAR(100),
+email  VARCHAR(100),
+dep_name  VARCHAR(100),
+dep_address  VARCHAR(100),
+city  VARCHAR(100),
+country  VARCHAR(100)
 ```
 
 **2. Constraints**
@@ -104,7 +117,7 @@ $$;
 
 **3. Mappings**
 
-The *source* schema requires a single *mapping* file, mapping the *target* tables to the *source* table.
+The *source* schema has one *mapping* file per *source* table, mapping *target* table(s) to the *source* table.
 
 ``` sql
 SELECT *
@@ -122,11 +135,10 @@ NATURAL JOIN
     );
 ```
 
-Like with *create* files, the *target* schema has one *mapping* file per *target* table. These often contain select statements references the *source* table.
+Like with *create* files, the *target* schema has one *mapping* file per *target* table. These often contain select statements referencing the *source* table.
 
 e.g., 
 ``` sql
-
 SELECT $S0.ssn, $S0.manager, $S0.city
 FROM $S0._person
 WHERE $S0.manager IS NOT NULL AND $S0.title IS NOT NULL
@@ -141,6 +153,25 @@ As one can see from the example above, the schema-table name is replaced by a `$
 - *TARGET*: Target tablename
 - *SOURCE1*, *SOURCE2*, ..., *SOURCEN*: Source tables involved in the mapping
 
+The *universal* mappings function slightly different. There are two sets: *from* and *to*. The *from* mappings map from the universal table to the target/source tables. The *to* mappings map from the target/source tables to the universal table.
+
+*from* example:
+
+``` sql
+-- _empdep.sql
+SELECT ssn, name, phone, email, dep_name, dep_address FROM ${universal_tablename}
+```
+
+*to* example:
+
+``` sql
+-- _empdep._position.sql
+SELECT ssn, name, phone, email, dep_name, dep_address FROM ${universal_tablename}
+SELECT ssn, name, phone, email, dep_name, dep_address, city, country
+FROM transducer._POSITION${suffix}
+NATURAL LEFT OUTER JOIN transducer._EMPDEP
+```
+
 #### Structure
 
 In order to distinguish which input files are which, a directory containing the files is passed as input to the program. This directory has the following structure:
@@ -153,9 +184,13 @@ L constraints
 L create
 |   L source
 |   L target
+|   L universal
 L mappings
     L source
     L target
+    L universal
+        L from
+        L to
 ```
 
 ### Example
