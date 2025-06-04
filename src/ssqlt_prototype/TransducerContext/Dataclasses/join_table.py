@@ -31,17 +31,26 @@ class JoinTable:
         return self._create_sql(self.delete_tablename)
 
     def generate_insert_function(self) -> str:
-        return self._generate_function(self.insert_tablename, insert_delete=Constraint.InsertDelete.INSERT)
+        return self._generate_function(
+            self.insert_tablename, insert_delete=Constraint.InsertDelete.INSERT
+        )
 
     def generate_delete_function(self) -> str:
-        return self._generate_function(self.delete_tablename, insert_delete=Constraint.InsertDelete.DELETE)
+        return self._generate_function(
+            self.delete_tablename, insert_delete=Constraint.InsertDelete.DELETE
+        )
 
-    def _generate_function(self, tablename: str, insert_delete: Constraint.InsertDelete) -> str:
+    def _generate_function(
+        self, tablename: str, insert_delete: Constraint.InsertDelete
+    ) -> str:
 
-        if self.create_table.source_target == SourceTarget.SOURCE:
-            ordering = self.universal.source_ordering
-        else:
-            ordering = self.universal.target_ordering
+        mappings = self.universal.mappings[self.create_table.table]
+
+        ordering = self.universal.source_ordering + self.universal.target_ordering
+        ordering = list(filter(
+            lambda x: x in mappings.partner_table_names,
+            ordering,
+        ))
 
         if insert_delete == Constraint.InsertDelete.INSERT:
             suffix = "_INSERT"
@@ -62,22 +71,20 @@ create temporary table temp_table(
 );
 """
 
-        to_sql = self.universal.mappings[self.create_table.table].to_sql_template.substitute({"suffix": suffix})
+        to_sql = self.universal.mappings[
+            self.create_table.table
+        ].to_sql_template.substitute({"suffix": suffix})
         sql += f"\nINSERT INTO temp_table ({to_sql});\n"
 
-        # Insert partners
+        # Inserts
 
-        for partner_table in ordering[:-1]:
+        for table in ordering[:-1]:
             partner_sql = self.universal.mappings[
-                partner_table
+                table
             ].from_sql_template.substitute({"universal_tablename": "temp_table"})
-            sql += f"\nINSERT INTO {self.create_table.schema}.{partner_table}{suffix}_JOIN ({partner_sql});"
-
-        # Inser loop
+            sql += f"\nINSERT INTO {self.create_table.schema}.{table}{suffix}_JOIN ({partner_sql});"
 
         sql += "\nINSERT INTO transducer._loop VALUES (1);"
-
-        # Insert into the join table
 
         partner_sql = self.universal.mappings[
             ordering[-1]
@@ -94,7 +101,9 @@ END;  $$;
         """
         return sql
 
-    def generate_trigger(self, tablename: str, _type: Literal["INSERT"] | Literal["DELETE"]) -> str:
+    def generate_trigger(
+        self, tablename: str, _type: Literal["INSERT"] | Literal["DELETE"]
+    ) -> str:
         sql = f"""CREATE TRIGGER {tablename}_trigger
 AFTER INSERT ON {self.create_table.schema}.{self.create_table.table}_{_type}
 FOR EACH ROW
