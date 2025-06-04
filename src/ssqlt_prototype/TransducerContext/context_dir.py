@@ -31,6 +31,7 @@ class ContextDir:
         universal_dir: str,
         universal_mappings_from_dir: str,
         universal_mappings_to_dir: str,
+        universal_orderings_dir: str,
     ) -> None:
         # Source
         self.source_dir = source_dir
@@ -68,6 +69,7 @@ class ContextDir:
         self.universal_dir = universal_dir
         self.universal_mappings_from_dir = universal_mappings_from_dir
         self.universal_mappings_to_dir = universal_mappings_to_dir
+        self.universal_orderings_dir = universal_orderings_dir
 
         if not os.path.exists(self.universal_dir):
             raise FileNotFoundError(f"Path {self.universal_dir} does not exist.")
@@ -78,6 +80,10 @@ class ContextDir:
         if not os.path.exists(self.universal_mappings_to_dir):
             raise FileNotFoundError(
                 f"Path {self.universal_mappings_to_dir} does not exist."
+            )
+        if not os.path.exists(self.universal_orderings_dir):
+            raise FileNotFoundError(
+                f"Path {self.universal_orderings_dir} does not exist."
             )
 
 
@@ -101,6 +107,7 @@ class ContextDir:
         universal_dir = os.path.join(path, "universal")
         universal_mappings_from_dir = os.path.join(universal_dir, "from")
         universal_mappings_to_dir = os.path.join(universal_dir, "to")
+        universal_orderings_dir = os.path.join(universal_dir, "orderings")
 
         return cls(
             source_dir=source_dir,
@@ -114,4 +121,5 @@ class ContextDir:
             universal_dir=universal_dir,
             universal_mappings_from_dir=universal_mappings_from_dir,
             universal_mappings_to_dir=universal_mappings_to_dir,
+            universal_orderings_dir=universal_orderings_dir,
         )

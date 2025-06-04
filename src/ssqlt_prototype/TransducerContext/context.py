@@ -1,5 +1,8 @@
 from dataclasses import dataclass
 from typing import Self
+from functools import partial
+
+from ssqlt_prototype.TransducerContext.Dataclasses.enums import SourceTarget
 
 from .context_dir import ContextDir
 from .context_file_paths import ContextFilePaths
@@ -11,12 +14,10 @@ class Context:
     source_tables: list[CreateTable]
     source_constraints: list[Constraint]
     source_mappings: list[Mapping]
-    source_ordering: list[str]
 
     target_tables: list[CreateTable]
     target_constraints: list[Constraint]
     target_mappings: list[Mapping]
-    target_ordering: list[str]
 
     universal: Universal
 
@@ -25,7 +26,7 @@ class Context:
         # SOURCE
 
         self.source_tables = list(
-            map(CreateTable.from_file, context_files.source_creates)
+            map(partial(CreateTable.from_file, source_target=SourceTarget.SOURCE), context_files.source_creates)
         )
         self.source_constraints = list(
             map(Constraint.from_file, context_files.source_constraints)
@@ -33,13 +34,11 @@ class Context:
         self.source_mappings = list(
             map(Mapping.from_file, context_files.target_to_source_mappings)
         )
-        with open(context_files.source_ordering, "r") as f:
-            self.source_ordering = f.read().strip().split("\n")
 
         # TARGET
 
         self.target_tables = list(
-            map(CreateTable.from_file, context_files.target_creates)
+            map(partial(CreateTable.from_file, source_target=SourceTarget.TARGET), context_files.target_creates)
         )
         self.target_constraints = list(
             map(Constraint.from_file, context_files.target_constraints)
@@ -47,8 +46,6 @@ class Context:
         self.target_mappings = list(
             map(Mapping.from_file, context_files.source_to_target_mappings)
         )
-        with open(context_files.target_ordering, "r") as f:
-            self.target_ordering = f.read().strip().split("\n")
 
         # UNIVERSAL
 
@@ -56,6 +53,8 @@ class Context:
             attribute_path=context_files.universal_attributes,
             from_mapping_paths=context_files.universal_mappings_from,
             to_mapping_paths=context_files.universal_mappings_to,
+            source_ordering_path=context_files.universal_source_ordering,
+            target_ordering_path=context_files.universal_target_ordering,
         )
 
     @classmethod
