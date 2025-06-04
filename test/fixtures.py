@@ -16,10 +16,3 @@ def input_dir(resource_dir):
     if not os.path.exists(path):
         raise FileNotFoundError(f"Path {path} does not exist.")
     return path
-
-@pytest.fixture
-def single_create_input_dir(resource_dir):
-    path = os.path.join(resource_dir, "input_old")
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"Path {path} does not exist.")
-    return path

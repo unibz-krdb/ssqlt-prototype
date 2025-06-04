@@ -4,83 +4,114 @@ from dataclasses import dataclass
 
 @dataclass
 class ContextDir:
-    create_source_dir: str
-    create_target_dir: str
-    create_universal_dir: str
-    mappings_source_dir: str
-    mappings_target_dir: str
-    mappings_from_universal_dir: str
-    mappings_to_universal_dir: str
-    constraints_source_dir: str
-    constraints_target_dir: str
+    source_dir: str
+    source_create_dir: str
+    source_constraints_dir: str
+    source_mappings_dir: str
+
+    target_dir: str
+    target_create_dir: str
+    target_constraints_dir: str
+    target_mappings_dir: str
+
+    universal_dir: str
+    universal_mappings_from_dir: str
+    universal_mappings_to_dir: str
 
     def __init__(
         self,
-        create_source_dir: str,
-        create_target_dir: str,
-        create_universal_dir: str,
-        mappings_source_dir: str,
-        mappings_target_dir: str,
-        mappings_from_universal_dir: str,
-        mappings_to_universal_dir: str,
-        constraints_source_dir: str,
-        constraints_target_dir: str,
+        source_dir: str,
+        source_create_dir: str,
+        source_constraints_dir: str,
+        source_mappings_dir: str,
+        target_dir: str,
+        target_create_dir: str,
+        target_constraints_dir: str,
+        target_mappings_dir: str,
+        universal_dir: str,
+        universal_mappings_from_dir: str,
+        universal_mappings_to_dir: str,
     ) -> None:
-        self.create_source_dir = create_source_dir
-        self.create_target_dir = create_target_dir
-        self.create_universal_dir = create_universal_dir
-        self.mappings_source_dir = mappings_source_dir
-        self.mappings_target_dir = mappings_target_dir
-        self.mappings_from_universal_dir = mappings_from_universal_dir
-        self.mappings_to_universal_dir = mappings_to_universal_dir
-        self.constraints_source_dir = constraints_source_dir
-        self.constraints_target_dir = constraints_target_dir
-        if not os.path.exists(self.create_source_dir):
-            raise FileNotFoundError(f"Path {self.create_source_dir} does not exist.")
-        if not os.path.exists(self.create_target_dir):
-            raise FileNotFoundError(f"Path {self.create_target_dir} does not exist.")
-        if not os.path.exists(self.create_universal_dir):
-            raise FileNotFoundError(f"Path {self.create_universal_dir} does not exist.")
-        if not os.path.exists(self.mappings_from_universal_dir):
+        # Source
+        self.source_dir = source_dir
+        self.source_create_dir = source_create_dir
+        self.source_constraints_dir = source_constraints_dir
+        self.source_mappings_dir = source_mappings_dir
+
+        if not os.path.exists(self.source_dir):
+            raise FileNotFoundError(f"Path {self.source_dir} does not exist.")
+        if not os.path.exists(self.source_create_dir):
+            raise FileNotFoundError(f"Path {self.source_create_dir} does not exist.")
+        if not os.path.exists(self.source_constraints_dir):
             raise FileNotFoundError(
-                f"Path {self.mappings_from_universal_dir} does not exist."
+                f"Path {self.source_constraints_dir} does not exist."
             )
-        if not os.path.exists(self.mappings_to_universal_dir):
+
+        # Target
+        self.target_dir = target_dir
+        self.target_create_dir = target_create_dir
+        self.target_constraints_dir = target_constraints_dir
+        self.target_mappings_dir = target_mappings_dir
+
+        if not os.path.exists(self.target_dir):
+            raise FileNotFoundError(f"Path {self.target_dir} does not exist.")
+        if not os.path.exists(self.target_create_dir):
+            raise FileNotFoundError(f"Path {self.target_create_dir} does not exist.")
+        if not os.path.exists(self.target_constraints_dir):
             raise FileNotFoundError(
-                f"Path {self.mappings_to_universal_dir} does not exist."
+                f"Path {self.target_constraints_dir} does not exist."
             )
-        if not os.path.exists(self.mappings_source_dir):
-            raise FileNotFoundError(f"Path {self.mappings_source_dir} does not exist.")
-        if not os.path.exists(self.mappings_target_dir):
-            raise FileNotFoundError(f"Path {self.mappings_target_dir} does not exist.")
-        if not os.path.exists(self.constraints_source_dir):
-            raise FileNotFoundError(f"Path {self.constraints_source_dir} does not exist.")
-        if not os.path.exists(constraints_target_dir):
-            raise FileNotFoundError(f"Path {self.constraints_target_dir} does not exist.")
+        if not os.path.exists(self.target_mappings_dir):
+            raise FileNotFoundError(f"Path {self.target_mappings_dir} does not exist.")
+
+        # Universal
+        self.universal_dir = universal_dir
+        self.universal_mappings_from_dir = universal_mappings_from_dir
+        self.universal_mappings_to_dir = universal_mappings_to_dir
+
+        if not os.path.exists(self.universal_dir):
+            raise FileNotFoundError(f"Path {self.universal_dir} does not exist.")
+        if not os.path.exists(self.universal_mappings_from_dir):
+            raise FileNotFoundError(
+                f"Path {self.universal_mappings_from_dir} does not exist."
+            )
+        if not os.path.exists(self.universal_mappings_to_dir):
+            raise FileNotFoundError(
+                f"Path {self.universal_mappings_to_dir} does not exist."
+            )
 
 
     @classmethod
-    def from_dir(cls, path: str):
-        create_dir = os.path.join(path, "create")
-        create_source_dir = os.path.join(create_dir, "source")
-        create_target_dir = os.path.join(create_dir, "target")
-        create_universal_dir = os.path.join(create_dir, "universal")
-        mappings_dir = os.path.join(path, "mappings")
-        mappings_source_dir = os.path.join(mappings_dir, "source")
-        mappings_target_dir = os.path.join(mappings_dir, "target")
-        mappings_from_universal_dir = os.path.join(mappings_dir, "universal", "from")
-        mappings_to_universal_dir = os.path.join(mappings_dir, "universal", "to")
-        constraints_dir = os.path.join(path, "constraints")
-        constraints_source_dir = os.path.join(constraints_dir, "source")
-        constraints_target_dir = os.path.join(constraints_dir, "target")
+    def from_dir(cls, path: str) -> "ContextDir":
+        """Create a ContextDir instance from a given directory path."""
+
+        # Source dirs
+        source_dir = os.path.join(path, "source")
+        source_create_dir = os.path.join(source_dir, "create")
+        source_constraints_dir = os.path.join(source_dir, "constraints")
+        source_mappings_dir = os.path.join(source_dir, "mappings")
+
+        # Target dirs
+        target_dir = os.path.join(path, "target")
+        target_create_dir = os.path.join(target_dir, "create")
+        target_constraints_dir = os.path.join(target_dir, "constraints")
+        target_mappings_dir = os.path.join(target_dir, "mappings")
+
+        # Universal dirs
+        universal_dir = os.path.join(path, "universal")
+        universal_mappings_from_dir = os.path.join(universal_dir, "from")
+        universal_mappings_to_dir = os.path.join(universal_dir, "to")
+
         return cls(
-            create_source_dir=create_source_dir,
-            create_target_dir=create_target_dir,
-            create_universal_dir=create_universal_dir,
-            mappings_source_dir=mappings_source_dir,
-            mappings_target_dir=mappings_target_dir,
-            mappings_from_universal_dir=mappings_from_universal_dir,
-            mappings_to_universal_dir=mappings_to_universal_dir,
-            constraints_source_dir=constraints_source_dir,
-            constraints_target_dir=constraints_target_dir,
+            source_dir=source_dir,
+            source_create_dir=source_create_dir,
+            source_constraints_dir=source_constraints_dir,
+            source_mappings_dir=source_mappings_dir,
+            target_dir=target_dir,
+            target_create_dir=target_create_dir,
+            target_constraints_dir=target_constraints_dir,
+            target_mappings_dir=target_mappings_dir,
+            universal_dir=universal_dir,
+            universal_mappings_from_dir=universal_mappings_from_dir,
+            universal_mappings_to_dir=universal_mappings_to_dir,
         )
