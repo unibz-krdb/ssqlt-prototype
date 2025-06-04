@@ -35,9 +35,16 @@ class Generator:
             self.delete_tables[table.table] = DeleteTable(source=table)
 
         self.join_tables = {}
-        for create_table in self.context.source_tables + self.context.target_tables:
+        for create_table in self.context.source_tables:
             self.join_tables[create_table.table] = JoinTable(
                 create_table=create_table,
+                table_orderings=self.context.source_ordering,
+                universal=self.context.universal,
+            )
+        for create_table in self.context.target_tables:
+            self.join_tables[create_table.table] = JoinTable(
+                create_table=create_table,
+                table_orderings=self.context.target_ordering,
                 universal=self.context.universal,
             )
 
