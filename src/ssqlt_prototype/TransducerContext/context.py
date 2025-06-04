@@ -11,41 +11,58 @@ from .Dataclasses import Constraint, CreateTable, Mapping, Universal
 
 @dataclass
 class Context:
-    source_tables: list[CreateTable]
-    source_constraints: list[Constraint]
-    source_mappings: list[Mapping]
+    source_tables: dict[str, CreateTable]
+    source_constraints: dict[str, list[Constraint]]
+    source_mappings: dict[str, Mapping]
 
-    target_tables: list[CreateTable]
-    target_constraints: list[Constraint]
-    target_mappings: list[Mapping]
+    target_tables: dict[str, CreateTable]
+    target_constraints: dict[str, list[Constraint]]
+    target_mappings: dict[str, Mapping]
 
     universal: Universal
 
     def __init__(self, context_files: ContextFilePaths) -> None:
 
         # SOURCE
+        self.source_tables = {}
+        for file_path in context_files.source_creates:
+            create_table = CreateTable.from_file(
+                file_path, source_target=SourceTarget.SOURCE
+            )
+            self.source_tables[create_table.table] = create_table
 
-        self.source_tables = list(
-            map(partial(CreateTable.from_file, source_target=SourceTarget.SOURCE), context_files.source_creates)
-        )
-        self.source_constraints = list(
-            map(Constraint.from_file, context_files.source_constraints)
-        )
-        self.source_mappings = list(
-            map(Mapping.from_file, context_files.target_to_source_mappings)
-        )
+        self.source_constraints = {}
+        for file_path in context_files.source_constraints:
+            constraint = Constraint.from_file(file_path)
+            if constraint.table not in self.source_constraints:
+                self.source_constraints[constraint.table] = []
+            self.source_constraints[constraint.table].append(constraint)
+
+        self.source_mappings = {}
+        for file_path in context_files.target_to_source_mappings:
+            mapping = Mapping.from_file(file_path)
+            self.source_mappings[mapping.target_table] = mapping
 
         # TARGET
 
-        self.target_tables = list(
-            map(partial(CreateTable.from_file, source_target=SourceTarget.TARGET), context_files.target_creates)
-        )
-        self.target_constraints = list(
-            map(Constraint.from_file, context_files.target_constraints)
-        )
-        self.target_mappings = list(
-            map(Mapping.from_file, context_files.source_to_target_mappings)
-        )
+        self.target_tables = {}
+        for file_path in context_files.target_creates:
+            create_table = CreateTable.from_file(
+                file_path, source_target=SourceTarget.TARGET
+            )
+            self.target_tables[create_table.table] = create_table
+
+        self.target_constraints = {}
+        for file_path in context_files.target_constraints:
+            constraint = Constraint.from_file(file_path)
+            if constraint.table not in self.target_constraints:
+                self.target_constraints[constraint.table] = []
+            self.target_constraints[constraint.table].append(constraint)
+
+        self.target_mappings = {}
+        for file_path in context_files.source_to_target_mappings:
+            mapping = Mapping.from_file(file_path)
+            self.target_mappings[mapping.target_table] = mapping
 
         # UNIVERSAL
 
@@ -62,67 +79,84 @@ class Context:
         context_dirs = ContextDir.from_dir(file_dir)
         return cls(ContextFilePaths(context_dirs))
 
-    def get_create(self, schema: str, table: str) -> None | CreateTable:
-        for source_table in self.source_tables:
-            if source_table.schema == schema and source_table.table == table:
-                return source_table
-        for target_table in self.target_tables:
-            if target_table.schema == schema and target_table.table == table:
-                return target_table
-        return None
-
-    def generate_source_insert(self):
+    def generate_target_insert(self):
         result = ""
-        strings: list[str] = []
 
-        for mapping in self.target_mappings:
-            target_table = self.get_create(
-                schema=mapping.schema, table=mapping.target_table
-            )
-            if target_table is None:
-                raise Exception("Mapping does not have a corresponding table")
-            strings.append(
-                f"INSERT INTO {mapping.schema}.{mapping.target_table} VALUES ({mapping.sql(['new'])}) ON CONFLICT ({','.join(target_table.pkey)}) DO NOTHING;"
-            )
-        insert_string = "\n        ".join(strings)
+        schema = "transducer"  # TODO Hardcoded
 
-        result = f"""
-CREATE OR REPLACE FUNCTION {self.source_tables[0].schema}.source_insert_fn()
-   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
-   BEGIN
-        {insert_string}
-        DELETE FROM {self.source_tables[0].schema}.{self.source_tables[0].table}_insert;
-        DELETE FROM {self.source_tables[0].schema}._loop;
-        RETURN NEW;
-END;   $$;
+        # Start
+        result += f"""
+CREATE OR REPLACE FUNCTION {schema}.target_insert_fn()
+RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+DECLARE
+v_loop INT;
+BEGIN
+
+SELECT count(*) INTO v_loop from transducer._loop;
+
+
+IF NOT EXISTS (SELECT * FROM transducer._loop, (SELECT COUNT(*) as rc_value FROM transducer._loop) AS row_count
+WHERE ABS(loop_start) = row_count.rc_value) THEN
+   RAISE NOTICE 'Wait %', v_loop;
+   RETURN NULL;
+ELSE
+   RAISE NOTICE 'This should conclude with an INSERT on _EMPDEP';
+        """
+
+        # Create temp table
+        result += f"""
+create temporary table temp_table_join(
+{self.universal.attributes}
+);
+"""
+
+        # TODO Temp Table Join Insert
+
+        # Other inserts
+
+        orderings = self.universal.source_ordering
+
+        table = orderings[0]
+        create_table = self.source_tables[table]
+
+        result += f"""
+INSERT INTO {schema}.{table} ({self.universal.mappings[table].from_sql_template.substitute(
+            {"universal_tablename": "temp_table_join"})}) ON CONFLICT ({", ".join(create_table.pkey)}) DO NOTHING;
+
+INSERT INTO {schema}._loop VALUES (-1);
+        """
+
+        for table in orderings[1:]:
+            create_table = self.source_tables[table]
+            result += f"""
+INSERT INTO {schema}.{table} ({self.universal.mappings[table].from_sql_template.substitute(
+            {"universal_tablename": "temp_table_join"})}) ON CONFLICT ({", ".join(create_table.pkey)}) DO NOTHING;
+"""
+
+        # DELETES
+
+        orderings = list(reversed(self.universal.target_ordering))
+
+        for table in orderings:
+            result += f"\nDELETE FROM {schema}.{table}_INSERT;"
+
+        result += "\n"
+
+        for table in orderings:
+            result += f"\nDELETE FROM {schema}.{table}_INSERT_JOIN;"
+
+        result += "\n"
+
+        result += f"""
+DELETE FROM {schema}._loop;
+DELETE FROM temp_table_join;
+DROP TABLE temp_table_join;
+RETURN NEW;
+END IF;
+END;    $$;
 """
 
         return result
 
     def generate_target_delete(self):
-        result = ""
-        strings: list[str] = []
-
-        for mapping in self.target_mappings:
-            target_table = self.get_create(
-                schema=mapping.schema, table=mapping.target_table
-            )
-            if target_table is None:
-                raise Exception("Mapping does not have a corresponding table")
-            strings.append(
-                f"DELETE FROM {mapping.schema}.{mapping.target_table}_delete;"
-            )
-        delete_string = "\n        ".join(strings)
-
-        result = f"""
-CREATE OR REPLACE FUNCTION {self.source_tables[0].schema}.target_insert_fn()
-   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
-   BEGIN
-
-        {delete_string}
-        DELETE FROM {self.source_tables[0].schema}._loop;
-        RETURN NEW;
-END;   $$;
-"""
-
-        return result
+        return NotImplementedError("Target delete generation is not implemented yet.")

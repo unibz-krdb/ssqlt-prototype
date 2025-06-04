@@ -908,25 +908,25 @@ ELSE
       AND email IS NOT NULL AND dep_name IS NOT NULL AND dep_address IS NOT NULL
       AND city IS NOT NULL AND country IS NOT NULL);
 
-      INSERT INTO transducer._POSITION (SELECT dep_address, city, country FROM temp_table_join) ON CONFLICT (dep_address) DO NOTHING;
-      INSERT INTO transducer._loop VALUES (-1);
-      INSERT INTO transducer._EMPDEP (SELECT ssn, name, phone, email, dep_name, dep_address FROM temp_table_join) ON CONFLICT (ssn, phone, email) DO NOTHING;
+   INSERT INTO transducer._POSITION (SELECT dep_address, city, country FROM temp_table_join) ON CONFLICT (dep_address) DO NOTHING;
+   INSERT INTO transducer._loop VALUES (-1);
+   INSERT INTO transducer._EMPDEP (SELECT ssn, name, phone, email, dep_name, dep_address FROM temp_table_join) ON CONFLICT (ssn, phone, email) DO NOTHING;
       
-      DELETE FROM transducer._PERSON_INSERT;
-      DELETE FROM transducer._PERSON_EMAIL_INSERT;
-      DELETE FROM transducer._PERSON_PHONE_INSERT;
-      DELETE FROM transducer._DEPARTMENT_INSERT;
-      DELETE FROM transducer._DEPARTMENT_CITY_INSERT;
-      DELETE FROM transducer._CITY_COUNTRY_INSERT;
+   DELETE FROM transducer._PERSON_INSERT;
+   DELETE FROM transducer._PERSON_EMAIL_INSERT;
+   DELETE FROM transducer._PERSON_PHONE_INSERT;
+   DELETE FROM transducer._DEPARTMENT_INSERT;
+   DELETE FROM transducer._DEPARTMENT_CITY_INSERT;
+   DELETE FROM transducer._CITY_COUNTRY_INSERT;
 
-      DELETE FROM transducer._PERSON_INSERT_JOIN;
-      DELETE FROM transducer._PERSON_EMAIL_INSERT_JOIN;
-      DELETE FROM transducer._PERSON_PHONE_INSERT_JOIN;
-      DELETE FROM transducer._DEPARTMENT_INSERT_JOIN;
-      DELETE FROM transducer._DEPARTMENT_CITY_INSERT_JOIN;
-      DELETE FROM transducer._CITY_COUNTRY_INSERT_JOIN;
+   DELETE FROM transducer._PERSON_INSERT_JOIN;
+   DELETE FROM transducer._PERSON_EMAIL_INSERT_JOIN;
+   DELETE FROM transducer._PERSON_PHONE_INSERT_JOIN;
+   DELETE FROM transducer._DEPARTMENT_INSERT_JOIN;
+   DELETE FROM transducer._DEPARTMENT_CITY_INSERT_JOIN;
+   DELETE FROM transducer._CITY_COUNTRY_INSERT_JOIN;
 
-      DELETE FROM transducer._loop;
+   DELETE FROM transducer._loop;
    DELETE FROM temp_table_join;
    DROP TABLE temp_table_join;
    RETURN NEW;

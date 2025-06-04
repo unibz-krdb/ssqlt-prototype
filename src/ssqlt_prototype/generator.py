@@ -14,28 +14,20 @@ class Generator:
         self.insert_tables = {}
         self.delete_tables = {}
 
-        for table in context.source_tables:
+        for tablename, table in context.source_tables.items():
             self.schema = table.schema
 
-            mapping = next(
-                mapping
-                for mapping in context.source_mappings
-                if mapping.target_table.lower() == table.table.lower()
-            )
-            self.insert_tables[table.table] = InsertTable(source=table, mapping=mapping)
-            self.delete_tables[table.table] = DeleteTable(source=table)
+            mapping = context.source_mappings[tablename]
+            self.insert_tables[tablename] = InsertTable(source=table, mapping=mapping)
+            self.delete_tables[tablename] = DeleteTable(source=table)
 
-        for table in context.target_tables:
-            mapping = next(
-                mapping
-                for mapping in context.target_mappings
-                if mapping.target_table.lower() == table.table.lower()
-            )
-            self.insert_tables[table.table] = InsertTable(source=table, mapping=mapping)
-            self.delete_tables[table.table] = DeleteTable(source=table)
+        for tablename, table in context.target_tables.items():
+            mapping = context.target_mappings[tablename]
+            self.insert_tables[tablename] = InsertTable(source=table, mapping=mapping)
+            self.delete_tables[tablename] = DeleteTable(source=table)
 
         self.join_tables = {}
-        for create_table in self.context.source_tables + self.context.target_tables:
+        for create_table in list(self.context.source_tables.values()) + list(self.context.target_tables.values()):
             self.join_tables[create_table.table] = JoinTable(
                 create_table=create_table,
                 universal=self.context.universal,
@@ -57,31 +49,33 @@ class Generator:
 
         transducer += "/* SOURCE TABLES */\n\n"
 
-        for table in self.context.source_tables:
+        for table in self.context.source_tables.values():
             transducer += table.sql + "\n\n"
 
         # STEP 2: Write source constraints
 
         transducer += "/* SOURCE CONSTRAINTS */\n\n"
 
-        for constraint in self.context.source_constraints:
-            transducer += constraint.generate_function() + "\n\n"
-            transducer += constraint.generate_trigger() + "\n\n\n"
+        for constraints in self.context.source_constraints.values():
+            for constraint in constraints:
+                transducer += constraint.generate_function() + "\n\n"
+                transducer += constraint.generate_trigger() + "\n\n\n"
 
         # STEP 3: Write target table creates
 
         transducer += "/* TARGET TABLES */\n\n"
 
-        for table in self.context.target_tables:
+        for table in self.context.target_tables.values():
             transducer += table.sql + "\n\n"
 
         # STEP 4: Write target table constraints
 
         transducer += "/* TARGET CONSTRAINTS */\n\n"
 
-        for constraint in self.context.target_constraints:
-            transducer += constraint.generate_function() + "\n\n"
-            transducer += constraint.generate_trigger() + "\n\n\n"
+        for constraints in self.context.target_constraints.values():
+            for constraint in constraints:
+                transducer += constraint.generate_function() + "\n\n"
+                transducer += constraint.generate_trigger() + "\n\n\n"
 
         # STEP 5: Write insert table
 
@@ -136,10 +130,7 @@ class Generator:
         transducer += "/* COMPLEX SOURCE */\n\n"
 
         transducer += "/* S->T INSERTS */\n"
-        transducer += self.context.generate_source_insert()
-
-        transducer += "\n/* T->S DELETE */\n"
-        transducer += self.context.generate_target_delete()
+        transducer += self.context.generate_target_insert()
 
         return transducer
 

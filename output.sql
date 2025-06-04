@@ -44,28 +44,6 @@ FOR EACH ROW
 EXECUTE FUNCTION transducer._empdep_fd_1_insert_fn();
 
 
-CREATE OR REPLACE FUNCTION transducer._position_fd_1_insert_fn()
-RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
-BEGIN
-   IF EXISTS (SELECT * 
-         FROM transducer._POSITION AS r1,
-         (SELECT NEW.dep_address, NEW.city, NEW.country ) AS r2
-            WHERE  r1.city = r2.city 
-         AND r1.country<> r2.country) THEN
-      RAISE EXCEPTION 'THIS ADDED VALUES VIOLATE THE FD CONSTRAINT IN POSITION';
-      RETURN NULL;
-   ELSE
-      RETURN NEW;
-   END IF;
-END;
-$$;
-
-CREATE TRIGGER transducer._position_fd_1_insert_trigger
-BEFORE INSERT ON transducer._position
-FOR EACH ROW
-EXECUTE FUNCTION transducer._position_fd_1_insert_fn();
-
-
 CREATE OR REPLACE FUNCTION transducer._empdep_mvd_1_insert_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
@@ -125,6 +103,28 @@ CREATE TRIGGER transducer._empdep_mvd_2_insert_trigger
 BEFORE INSERT ON transducer._empdep
 FOR EACH ROW
 EXECUTE FUNCTION transducer._empdep_mvd_2_insert_fn();
+
+
+CREATE OR REPLACE FUNCTION transducer._position_fd_1_insert_fn()
+RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+BEGIN
+   IF EXISTS (SELECT * 
+         FROM transducer._POSITION AS r1,
+         (SELECT NEW.dep_address, NEW.city, NEW.country ) AS r2
+            WHERE  r1.city = r2.city 
+         AND r1.country<> r2.country) THEN
+      RAISE EXCEPTION 'THIS ADDED VALUES VIOLATE THE FD CONSTRAINT IN POSITION';
+      RETURN NULL;
+   ELSE
+      RETURN NEW;
+   END IF;
+END;
+$$;
+
+CREATE TRIGGER transducer._position_fd_1_insert_trigger
+BEFORE INSERT ON transducer._position
+FOR EACH ROW
+EXECUTE FUNCTION transducer._position_fd_1_insert_fn();
 
 
 /* TARGET TABLES */
@@ -1260,37 +1260,56 @@ EXECUTE FUNCTION transducer._person_phone_DELETE_JOIN_fn();
 
 /* S->T INSERTS */
 
-CREATE OR REPLACE FUNCTION transducer.source_insert_fn()
-   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
-   BEGIN
-        INSERT INTO transducer._department_city VALUES () ON CONFLICT (dep_address) DO NOTHING;
-        INSERT INTO transducer._department VALUES (SELECT dep_name, dep_address
-FROM _EMPDEP) ON CONFLICT (dep_name) DO NOTHING;
-        INSERT INTO transducer._city_country VALUES (SELECT city,country
-FROM _POSITION) ON CONFLICT (city) DO NOTHING;
-        INSERT INTO transducer._person_email VALUES (SELECT ssn, email
-FROM _EMPDEP) ON CONFLICT (ssn,email) DO NOTHING;
-        INSERT INTO transducer._person_phone VALUES (SELECT ssn, phone
-FROM _EMPDEP) ON CONFLICT (ssn,phone) DO NOTHING;
-        INSERT INTO transducer._person VALUES (SELECT ssn, name, dep_name
-FROM _EMPDEP) ON CONFLICT (ssn) DO NOTHING;
-        DELETE FROM transducer._position_insert;
-        DELETE FROM transducer._loop;
-        RETURN NEW;
-END;   $$;
-
-/* T->S DELETE */
-
 CREATE OR REPLACE FUNCTION transducer.target_insert_fn()
-   RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
-   BEGIN
+RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+DECLARE
+v_loop INT;
+BEGIN
 
-        DELETE FROM transducer._department_city_delete;
-        DELETE FROM transducer._department_delete;
-        DELETE FROM transducer._city_country_delete;
-        DELETE FROM transducer._person_email_delete;
-        DELETE FROM transducer._person_phone_delete;
-        DELETE FROM transducer._person_delete;
-        DELETE FROM transducer._loop;
-        RETURN NEW;
-END;   $$;
+SELECT count(*) INTO v_loop from transducer._loop;
+
+
+IF NOT EXISTS (SELECT * FROM transducer._loop, (SELECT COUNT(*) as rc_value FROM transducer._loop) AS row_count
+WHERE ABS(loop_start) = row_count.rc_value) THEN
+   RAISE NOTICE 'Wait %', v_loop;
+   RETURN NULL;
+ELSE
+   RAISE NOTICE 'This should conclude with an INSERT on _EMPDEP';
+        
+create temporary table temp_table_join(
+ssn  VARCHAR(100),
+name  VARCHAR(100),
+phone  VARCHAR(100),
+email  VARCHAR(100),
+dep_name  VARCHAR(100),
+dep_address  VARCHAR(100),
+city  VARCHAR(100),
+country  VARCHAR(100)
+);
+
+INSERT INTO transducer._position (SELECT dep_address, city, country FROM temp_table_join) ON CONFLICT (dep_address) DO NOTHING;
+
+INSERT INTO transducer._loop VALUES (-1);
+        
+INSERT INTO transducer._empdep (SELECT ssn, name, phone, email, dep_name, dep_address FROM temp_table_join) ON CONFLICT (ssn, phone, email) DO NOTHING;
+
+DELETE FROM transducer._person_INSERT;
+DELETE FROM transducer._person_phone_INSERT;
+DELETE FROM transducer._person_email_INSERT;
+DELETE FROM transducer._department_INSERT;
+DELETE FROM transducer._department_city_INSERT;
+DELETE FROM transducer._city_country_INSERT;
+
+DELETE FROM transducer._person_INSERT_JOIN;
+DELETE FROM transducer._person_phone_INSERT_JOIN;
+DELETE FROM transducer._person_email_INSERT_JOIN;
+DELETE FROM transducer._department_INSERT_JOIN;
+DELETE FROM transducer._department_city_INSERT_JOIN;
+DELETE FROM transducer._city_country_INSERT_JOIN;
+
+DELETE FROM transducer._loop;
+DELETE FROM temp_table_join;
+DROP TABLE temp_table_join;
+RETURN NEW;
+END IF;
+END;    $$;
