@@ -6,16 +6,21 @@ from .context_dir import ContextDir
 @dataclass
 class ContextFilePaths:
     source_creates: list[str]
-    target_creates: list[str]
     source_constraints: list[str]
+    source_to_target_mappings: list[str]
+    source_ordering: str
+
+    target_creates: list[str]
     target_constraints: list[str]
     target_to_source_mappings: list[str]
-    source_to_target_mappings: list[str]
+    target_ordering: str
+
     universal_attributes: str
     universal_mappings_from: list[str]
     universal_mappings_to: list[str]
 
     def __init__(self, context_paths: ContextDir) -> None:
+
         # Get source_create file
         files = os.listdir(context_paths.source_create_dir)
         if len(files) == 0:
@@ -48,6 +53,16 @@ class ContextFilePaths:
             map(lambda f: os.path.join(context_paths.target_constraints_dir, f), files)
         )
 
+        # Get source_to_target_mappings files
+        files = os.listdir(context_paths.target_mappings_dir)
+        if len(files) != len(self.target_creates):
+            raise FileNotFoundError(
+                f"Number of mapping files ({len(files)}) does not match number of target creates ({len(self.target_creates)})"
+            )
+        self.source_to_target_mappings = list(
+            map(lambda f: os.path.join(context_paths.target_mappings_dir, f), files)
+        )
+
         # Get target_to_source_mapping file
         files = os.listdir(context_paths.source_mappings_dir)
         if len(files) == 0:
@@ -58,15 +73,19 @@ class ContextFilePaths:
             map(lambda f: os.path.join(context_paths.source_mappings_dir, f), files)
         )
 
-        # Get source_to_target_mappings files
-        files = os.listdir(context_paths.target_mappings_dir)
-        if len(files) != len(self.target_creates):
+        # Get source_ordering file
+        self.source_ordering = os.path.join(context_paths.source_dir, "ordering.txt")
+        if not os.path.exists(self.source_ordering):
             raise FileNotFoundError(
-                f"Number of mapping files ({len(files)}) does not match number of target creates ({len(self.target_creates)})"
+                f"Source ordering file not found at {self.source_ordering}"
             )
-        self.source_to_target_mappings = list(
-            map(lambda f: os.path.join(context_paths.target_mappings_dir, f), files)
-        )
+
+        # Get target_ordering file
+        self.target_ordering = os.path.join(context_paths.target_dir, "ordering.txt")
+        if not os.path.exists(self.target_ordering):
+            raise FileNotFoundError(
+                f"Target ordering file not found at {self.target_ordering}"
+            )
 
         # Get universal attributes file
         self.universal_attributes = os.path.join(

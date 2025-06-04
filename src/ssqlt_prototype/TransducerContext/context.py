@@ -1,40 +1,57 @@
 from dataclasses import dataclass
 from typing import Self
 
-from .Dataclasses import Constraint, CreateTable, Mapping, Universal, JoinTable
 from .context_dir import ContextDir
 from .context_file_paths import ContextFilePaths
+from .Dataclasses import Constraint, CreateTable, Mapping, Universal
 
 
 @dataclass
 class Context:
     source_tables: list[CreateTable]
-    target_tables: list[CreateTable]
     source_constraints: list[Constraint]
-    target_constraints: list[Constraint]
     source_mappings: list[Mapping]
+    source_ordering: list[str]
+
+    target_tables: list[CreateTable]
+    target_constraints: list[Constraint]
     target_mappings: list[Mapping]
+    target_ordering: list[str]
+
     universal: Universal
 
     def __init__(self, context_files: ContextFilePaths) -> None:
+
+        # SOURCE
+
         self.source_tables = list(
             map(CreateTable.from_file, context_files.source_creates)
-        )
-        self.target_tables = list(
-            map(CreateTable.from_file, context_files.target_creates)
         )
         self.source_constraints = list(
             map(Constraint.from_file, context_files.source_constraints)
         )
-        self.target_constraints = list(
-            map(Constraint.from_file, context_files.target_constraints)
-        )
         self.source_mappings = list(
             map(Mapping.from_file, context_files.target_to_source_mappings)
+        )
+        with open(context_files.source_ordering, "r") as f:
+            self.source_ordering = f.read().strip().split("\n")
+
+        # TARGET
+
+        self.target_tables = list(
+            map(CreateTable.from_file, context_files.target_creates)
+        )
+        self.target_constraints = list(
+            map(Constraint.from_file, context_files.target_constraints)
         )
         self.target_mappings = list(
             map(Mapping.from_file, context_files.source_to_target_mappings)
         )
+        with open(context_files.target_ordering, "r") as f:
+            self.target_ordering = f.read().strip().split("\n")
+
+        # UNIVERSAL
+
         self.universal = Universal.from_files(
             attribute_path=context_files.universal_attributes,
             from_mapping_paths=context_files.universal_mappings_from,
