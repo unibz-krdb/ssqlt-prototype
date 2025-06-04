@@ -7,7 +7,8 @@ from .universal_mapping import UniversalMapping
 
 @dataclass
 class Universal:
-    attributes: str
+    attributes: list[str]
+    types: list[str]
     mappings: dict[str, UniversalMapping]
     source_ordering: list[str]
     target_ordering: list[str]
@@ -20,6 +21,23 @@ class Universal:
         target_table = tokens[0]
         return target_table
 
+    def get_attributes(self) -> list[str]:
+        """Return attributes as a string."""
+        return self.attributes
+
+    def create_sql(self, tablename: str, temp: bool) -> str:
+        """Create SQL for the universal table."""
+        sql = "create"
+        if temp:
+            sql += " temporary"
+        sql += f" table {tablename} (\n"
+
+        for attribute, type_ in zip(self.attributes, self.types):
+            sql += f"    {attribute} {type_},\n"
+        sql += ");"
+
+        return sql
+
     @classmethod
     def from_files(
         cls,
@@ -30,8 +48,14 @@ class Universal:
         target_ordering_path: str,
     ) -> Self:
 
+        attributes = []
+        types = []
         with open(attribute_path, "r") as f:
-            attributes = f.read().strip()
+            attributes_types = f.read().strip().splitlines()
+            for attribute_type in attributes_types:
+                attribute, type_ = attribute_type.split(",")
+                attributes.append(attribute.strip())
+                types.append(type_.strip())
 
         mappings = {}
         for from_mapping_path in from_mapping_paths:
@@ -48,6 +72,7 @@ class Universal:
 
         return cls(
             attributes=attributes,
+            types=types,
             mappings={
                 table_name: UniversalMapping.from_files(from_path, to_path)
                 for table_name, (from_path, to_path) in mappings.items()

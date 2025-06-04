@@ -82,7 +82,11 @@ class Context:
     def generate_target_insert(self):
         result = ""
 
+        source_orderings = self.universal.source_ordering
+        target_orderings = list(reversed(self.universal.target_ordering))
+
         schema = "transducer"  # TODO Hardcoded
+        temp_tablename = "temp_table_join"
 
         # Start
         result += f"""
@@ -104,53 +108,62 @@ ELSE
         """
 
         # Create temp table
-        result += f"""
-create temporary table temp_table_join(
-{self.universal.attributes}
-);
-"""
+        result += "\n" + self.universal.create_sql(temp_tablename, temp=True)
 
         # TODO Temp Table Join Insert
 
+        full_mapping_tablename = target_orderings[-1]
+        full_mapping = self.universal.mappings[full_mapping_tablename].to_sql(
+            primary_suffix="_INSERT_JOIN",
+            secondary_suffix="_INSERT_JOIN",
+            distinct=True,
+        )
+        result += f"\n\nINSERT INTO {temp_tablename}("
+        result += full_mapping
+        result += "\n where "
+        result += "\n AND ".join(
+            map(lambda x: x + " IS NOT NULL", self.universal.attributes)
+        )
+        result += "\n "
+        result += ");"
+
         # Other inserts
 
-        orderings = self.universal.source_ordering
-
-        table = orderings[0]
+        table = source_orderings[0]
         create_table = self.source_tables[table]
 
+        mapping_str = self.universal.mappings[table].from_sql(
+            universal_tablename=temp_tablename
+        )
         result += f"""
-INSERT INTO {schema}.{table} ({self.universal.mappings[table].from_sql_template.substitute(
-            {"universal_tablename": "temp_table_join"})}) ON CONFLICT ({", ".join(create_table.pkey)}) DO NOTHING;
-
+\nINSERT INTO {schema}.{table} ({mapping_str}) ON CONFLICT ({", ".join(create_table.pkey)}) DO NOTHING;
 INSERT INTO {schema}._loop VALUES (-1);
-        """
+"""
 
-        for table in orderings[1:]:
+        for table in source_orderings[1:]:
             create_table = self.source_tables[table]
-            result += f"""
-INSERT INTO {schema}.{table} ({self.universal.mappings[table].from_sql_template.substitute(
-            {"universal_tablename": "temp_table_join"})}) ON CONFLICT ({", ".join(create_table.pkey)}) DO NOTHING;
+            mapping_str = self.universal.mappings[table].from_sql(
+                universal_tablename=temp_tablename
+            )
+            result += f"""INSERT INTO {schema}.{table} ({mapping_str}) ON CONFLICT ({", ".join(create_table.pkey)}) DO NOTHING;
 """
 
         # DELETES
 
-        orderings = list(reversed(self.universal.target_ordering))
-
-        for table in orderings:
+        for table in target_orderings:
             result += f"\nDELETE FROM {schema}.{table}_INSERT;"
 
         result += "\n"
 
-        for table in orderings:
+        for table in target_orderings:
             result += f"\nDELETE FROM {schema}.{table}_INSERT_JOIN;"
 
         result += "\n"
 
         result += f"""
 DELETE FROM {schema}._loop;
-DELETE FROM temp_table_join;
-DROP TABLE temp_table_join;
+DELETE FROM {temp_tablename};
+DROP TABLE {temp_tablename};
 RETURN NEW;
 END IF;
 END;    $$;

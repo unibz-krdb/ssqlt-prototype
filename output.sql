@@ -325,21 +325,17 @@ EXECUTE FUNCTION transducer._position_INSERT_fn();
 CREATE OR REPLACE FUNCTION transducer._position_INSERT_JOIN_FN()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
-
-create temporary table temp_table(
-ssn  VARCHAR(100),
-name  VARCHAR(100),
-phone  VARCHAR(100),
-email  VARCHAR(100),
-dep_name  VARCHAR(100),
-dep_address  VARCHAR(100),
-city  VARCHAR(100),
-country  VARCHAR(100)
+create temporary table temp_table (
+    ssn VARCHAR(100),
+    name VARCHAR(100),
+    phone VARCHAR(100),
+    email VARCHAR(100),
+    dep_name VARCHAR(100),
+    dep_address VARCHAR(100),
+    city VARCHAR(100),
+    country VARCHAR(100),
 );
-
-INSERT INTO temp_table (SELECT ssn, name, phone, email, dep_name, dep_address, city, country
-FROM transducer._POSITION_INSERT
-NATURAL LEFT OUTER JOIN transducer._EMPDEP);
+INSERT INTO temp_table (SELECT dep_address, city, country FROM );
 
 INSERT INTO transducer._loop VALUES (1);
 INSERT INTO transducer._empdep_INSERT_JOIN (SELECT ssn, name, phone, email, dep_name, dep_address FROM temp_table);
@@ -378,21 +374,17 @@ EXECUTE FUNCTION transducer._empdep_INSERT_fn();
 CREATE OR REPLACE FUNCTION transducer._empdep_INSERT_JOIN_FN()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
-
-create temporary table temp_table(
-ssn  VARCHAR(100),
-name  VARCHAR(100),
-phone  VARCHAR(100),
-email  VARCHAR(100),
-dep_name  VARCHAR(100),
-dep_address  VARCHAR(100),
-city  VARCHAR(100),
-country  VARCHAR(100)
+create temporary table temp_table (
+    ssn VARCHAR(100),
+    name VARCHAR(100),
+    phone VARCHAR(100),
+    email VARCHAR(100),
+    dep_name VARCHAR(100),
+    dep_address VARCHAR(100),
+    city VARCHAR(100),
+    country VARCHAR(100),
 );
-
-INSERT INTO temp_table (SELECT ssn, name, phone, email, dep_name, dep_address, city, country
-FROM transducer._EMPDEP_INSERT
-NATURAL LEFT OUTER JOIN transducer._POSITION);
+INSERT INTO temp_table (SELECT ssn, name, phone, email, dep_name, dep_address FROM );
 
 INSERT INTO transducer._loop VALUES (1);
 INSERT INTO transducer._position_INSERT_JOIN (SELECT dep_address, city, country FROM temp_table);
@@ -431,25 +423,17 @@ EXECUTE FUNCTION transducer._person_INSERT_fn();
 CREATE OR REPLACE FUNCTION transducer._person_INSERT_JOIN_FN()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
-
-create temporary table temp_table(
-ssn  VARCHAR(100),
-name  VARCHAR(100),
-phone  VARCHAR(100),
-email  VARCHAR(100),
-dep_name  VARCHAR(100),
-dep_address  VARCHAR(100),
-city  VARCHAR(100),
-country  VARCHAR(100)
+create temporary table temp_table (
+    ssn VARCHAR(100),
+    name VARCHAR(100),
+    phone VARCHAR(100),
+    email VARCHAR(100),
+    dep_name VARCHAR(100),
+    dep_address VARCHAR(100),
+    city VARCHAR(100),
+    country VARCHAR(100),
 );
-
-INSERT INTO temp_table (SELECT ssn, name, phone, email, dep_name, dep_address, city, country
-   FROM transducer._PERSON_INSERT
-   NATURAL LEFT OUTER JOIN transducer._PERSON_PHONE
-   NATURAL LEFT OUTER JOIN transducer._PERSON_EMAIL
-   NATURAL LEFT OUTER JOIN transducer._DEPARTMENT
-   NATURAL LEFT OUTER JOIN transducer._DEPARTMENT_CITY
-   NATURAL LEFT OUTER JOIN transducer._CITY_COUNTRY);
+INSERT INTO temp_table (SELECT ssn, name, dep_name FROM );
 
 INSERT INTO transducer._person_phone_INSERT_JOIN (SELECT ssn, phone FROM temp_table);
 INSERT INTO transducer._person_email_INSERT_JOIN (SELECT ssn, email FROM temp_table);
@@ -492,25 +476,17 @@ EXECUTE FUNCTION transducer._department_INSERT_fn();
 CREATE OR REPLACE FUNCTION transducer._department_INSERT_JOIN_FN()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
-
-create temporary table temp_table(
-ssn  VARCHAR(100),
-name  VARCHAR(100),
-phone  VARCHAR(100),
-email  VARCHAR(100),
-dep_name  VARCHAR(100),
-dep_address  VARCHAR(100),
-city  VARCHAR(100),
-country  VARCHAR(100)
+create temporary table temp_table (
+    ssn VARCHAR(100),
+    name VARCHAR(100),
+    phone VARCHAR(100),
+    email VARCHAR(100),
+    dep_name VARCHAR(100),
+    dep_address VARCHAR(100),
+    city VARCHAR(100),
+    country VARCHAR(100),
 );
-
-INSERT INTO temp_table (SELECT ssn, name, phone, email, dep_name, dep_address, city, country
-FROM transducer._DEPARTMENT_INSERT
-   NATURAL LEFT OUTER JOIN transducer._PERSON
-   NATURAL LEFT OUTER JOIN transducer._PERSON_PHONE
-   NATURAL LEFT OUTER JOIN transducer._PERSON_EMAIL
-   NATURAL LEFT OUTER JOIN transducer._DEPARTMENT_CITY
-   NATURAL LEFT OUTER JOIN transducer._CITY_COUNTRY);
+INSERT INTO temp_table (SELECT dep_name, dep_address FROM );
 
 INSERT INTO transducer._person_INSERT_JOIN (SELECT ssn, name, dep_name FROM temp_table);
 INSERT INTO transducer._person_phone_INSERT_JOIN (SELECT ssn, phone FROM temp_table);
@@ -553,25 +529,17 @@ EXECUTE FUNCTION transducer._city_country_INSERT_fn();
 CREATE OR REPLACE FUNCTION transducer._city_country_INSERT_JOIN_FN()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
-
-create temporary table temp_table(
-ssn  VARCHAR(100),
-name  VARCHAR(100),
-phone  VARCHAR(100),
-email  VARCHAR(100),
-dep_name  VARCHAR(100),
-dep_address  VARCHAR(100),
-city  VARCHAR(100),
-country  VARCHAR(100)
+create temporary table temp_table (
+    ssn VARCHAR(100),
+    name VARCHAR(100),
+    phone VARCHAR(100),
+    email VARCHAR(100),
+    dep_name VARCHAR(100),
+    dep_address VARCHAR(100),
+    city VARCHAR(100),
+    country VARCHAR(100),
 );
-
-INSERT INTO temp_table (SELECT ssn, name, phone, email, dep_name, dep_address, city, country
-FROM transducer._CITY_COUNTRY_INSERT
-   NATURAL LEFT OUTER JOIN transducer._DEPARTMENT_CITY
-   NATURAL LEFT OUTER JOIN transducer._DEPARTMENT
-   NATURAL LEFT OUTER JOIN transducer._PERSON
-   NATURAL LEFT OUTER JOIN transducer._PERSON_PHONE
-   NATURAL LEFT OUTER JOIN transducer._PERSON_EMAIL);
+INSERT INTO temp_table (SELECT city, country FROM );
 
 INSERT INTO transducer._person_INSERT_JOIN (SELECT ssn, name, dep_name FROM temp_table);
 INSERT INTO transducer._person_phone_INSERT_JOIN (SELECT ssn, phone FROM temp_table);
@@ -614,25 +582,17 @@ EXECUTE FUNCTION transducer._person_email_INSERT_fn();
 CREATE OR REPLACE FUNCTION transducer._person_email_INSERT_JOIN_FN()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
-
-create temporary table temp_table(
-ssn  VARCHAR(100),
-name  VARCHAR(100),
-phone  VARCHAR(100),
-email  VARCHAR(100),
-dep_name  VARCHAR(100),
-dep_address  VARCHAR(100),
-city  VARCHAR(100),
-country  VARCHAR(100)
+create temporary table temp_table (
+    ssn VARCHAR(100),
+    name VARCHAR(100),
+    phone VARCHAR(100),
+    email VARCHAR(100),
+    dep_name VARCHAR(100),
+    dep_address VARCHAR(100),
+    city VARCHAR(100),
+    country VARCHAR(100),
 );
-
-INSERT INTO temp_table (SELECT ssn, name, phone, email, dep_name, dep_address, city, country
-FROM transducer._PERSON_EMAIL_INSERT
-   NATURAL LEFT OUTER JOIN transducer._PERSON
-   NATURAL LEFT OUTER JOIN transducer._PERSON_PHONE
-   NATURAL LEFT OUTER JOIN transducer._DEPARTMENT
-   NATURAL LEFT OUTER JOIN transducer._DEPARTMENT_CITY
-   NATURAL LEFT OUTER JOIN transducer._CITY_COUNTRY);
+INSERT INTO temp_table (SELECT ssn, email FROM );
 
 INSERT INTO transducer._person_INSERT_JOIN (SELECT ssn, name, dep_name FROM temp_table);
 INSERT INTO transducer._person_phone_INSERT_JOIN (SELECT ssn, phone FROM temp_table);
@@ -675,25 +635,17 @@ EXECUTE FUNCTION transducer._department_city_INSERT_fn();
 CREATE OR REPLACE FUNCTION transducer._department_city_INSERT_JOIN_FN()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
-
-create temporary table temp_table(
-ssn  VARCHAR(100),
-name  VARCHAR(100),
-phone  VARCHAR(100),
-email  VARCHAR(100),
-dep_name  VARCHAR(100),
-dep_address  VARCHAR(100),
-city  VARCHAR(100),
-country  VARCHAR(100)
+create temporary table temp_table (
+    ssn VARCHAR(100),
+    name VARCHAR(100),
+    phone VARCHAR(100),
+    email VARCHAR(100),
+    dep_name VARCHAR(100),
+    dep_address VARCHAR(100),
+    city VARCHAR(100),
+    country VARCHAR(100),
 );
-
-INSERT INTO temp_table (SELECT ssn, name, phone, email, dep_name, dep_address, city, country
-FROM transducer._DEPARTMENT_CITY_INSERT
-   NATURAL LEFT OUTER JOIN transducer._CITY_COUNTRY
-   NATURAL LEFT OUTER JOIN transducer._DEPARTMENT
-   NATURAL LEFT OUTER JOIN transducer._PERSON
-   NATURAL LEFT OUTER JOIN transducer._PERSON_PHONE
-   NATURAL LEFT OUTER JOIN transducer._PERSON_EMAIL);
+INSERT INTO temp_table (SELECT dep_address, city FROM );
 
 INSERT INTO transducer._person_INSERT_JOIN (SELECT ssn, name, dep_name FROM temp_table);
 INSERT INTO transducer._person_phone_INSERT_JOIN (SELECT ssn, phone FROM temp_table);
@@ -736,25 +688,17 @@ EXECUTE FUNCTION transducer._person_phone_INSERT_fn();
 CREATE OR REPLACE FUNCTION transducer._person_phone_INSERT_JOIN_FN()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
-
-create temporary table temp_table(
-ssn  VARCHAR(100),
-name  VARCHAR(100),
-phone  VARCHAR(100),
-email  VARCHAR(100),
-dep_name  VARCHAR(100),
-dep_address  VARCHAR(100),
-city  VARCHAR(100),
-country  VARCHAR(100)
+create temporary table temp_table (
+    ssn VARCHAR(100),
+    name VARCHAR(100),
+    phone VARCHAR(100),
+    email VARCHAR(100),
+    dep_name VARCHAR(100),
+    dep_address VARCHAR(100),
+    city VARCHAR(100),
+    country VARCHAR(100),
 );
-
-INSERT INTO temp_table (SELECT ssn, name, phone, email, dep_name, dep_address, city, country
-FROM transducer._PERSON_PHONE_INSERT
-   NATURAL LEFT OUTER JOIN transducer._PERSON
-   NATURAL LEFT OUTER JOIN transducer._PERSON_EMAIL
-   NATURAL LEFT OUTER JOIN transducer._DEPARTMENT
-   NATURAL LEFT OUTER JOIN transducer._DEPARTMENT_CITY
-   NATURAL LEFT OUTER JOIN transducer._CITY_COUNTRY);
+INSERT INTO temp_table (SELECT ssn, phone FROM );
 
 INSERT INTO transducer._person_INSERT_JOIN (SELECT ssn, name, dep_name FROM temp_table);
 INSERT INTO transducer._person_email_INSERT_JOIN (SELECT ssn, email FROM temp_table);
@@ -800,21 +744,17 @@ EXECUTE FUNCTION transducer._position_DELETE_fn();
 CREATE OR REPLACE FUNCTION transducer._position_DELETE_JOIN_FN()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
-
-create temporary table temp_table(
-ssn  VARCHAR(100),
-name  VARCHAR(100),
-phone  VARCHAR(100),
-email  VARCHAR(100),
-dep_name  VARCHAR(100),
-dep_address  VARCHAR(100),
-city  VARCHAR(100),
-country  VARCHAR(100)
+create temporary table temp_table (
+    ssn VARCHAR(100),
+    name VARCHAR(100),
+    phone VARCHAR(100),
+    email VARCHAR(100),
+    dep_name VARCHAR(100),
+    dep_address VARCHAR(100),
+    city VARCHAR(100),
+    country VARCHAR(100),
 );
-
-INSERT INTO temp_table (SELECT ssn, name, phone, email, dep_name, dep_address, city, country
-FROM transducer._POSITION_DELETE
-NATURAL LEFT OUTER JOIN transducer._EMPDEP);
+INSERT INTO temp_table (SELECT dep_address, city, country FROM );
 
 INSERT INTO transducer._loop VALUES (1);
 INSERT INTO transducer._empdep_DELETE_JOIN (SELECT ssn, name, phone, email, dep_name, dep_address FROM temp_table);
@@ -854,21 +794,17 @@ EXECUTE FUNCTION transducer._empdep_DELETE_fn();
 CREATE OR REPLACE FUNCTION transducer._empdep_DELETE_JOIN_FN()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
-
-create temporary table temp_table(
-ssn  VARCHAR(100),
-name  VARCHAR(100),
-phone  VARCHAR(100),
-email  VARCHAR(100),
-dep_name  VARCHAR(100),
-dep_address  VARCHAR(100),
-city  VARCHAR(100),
-country  VARCHAR(100)
+create temporary table temp_table (
+    ssn VARCHAR(100),
+    name VARCHAR(100),
+    phone VARCHAR(100),
+    email VARCHAR(100),
+    dep_name VARCHAR(100),
+    dep_address VARCHAR(100),
+    city VARCHAR(100),
+    country VARCHAR(100),
 );
-
-INSERT INTO temp_table (SELECT ssn, name, phone, email, dep_name, dep_address, city, country
-FROM transducer._EMPDEP_DELETE
-NATURAL LEFT OUTER JOIN transducer._POSITION);
+INSERT INTO temp_table (SELECT ssn, name, phone, email, dep_name, dep_address FROM );
 
 INSERT INTO transducer._loop VALUES (1);
 INSERT INTO transducer._position_DELETE_JOIN (SELECT dep_address, city, country FROM temp_table);
@@ -908,25 +844,17 @@ EXECUTE FUNCTION transducer._person_DELETE_fn();
 CREATE OR REPLACE FUNCTION transducer._person_DELETE_JOIN_FN()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
-
-create temporary table temp_table(
-ssn  VARCHAR(100),
-name  VARCHAR(100),
-phone  VARCHAR(100),
-email  VARCHAR(100),
-dep_name  VARCHAR(100),
-dep_address  VARCHAR(100),
-city  VARCHAR(100),
-country  VARCHAR(100)
+create temporary table temp_table (
+    ssn VARCHAR(100),
+    name VARCHAR(100),
+    phone VARCHAR(100),
+    email VARCHAR(100),
+    dep_name VARCHAR(100),
+    dep_address VARCHAR(100),
+    city VARCHAR(100),
+    country VARCHAR(100),
 );
-
-INSERT INTO temp_table (SELECT ssn, name, phone, email, dep_name, dep_address, city, country
-   FROM transducer._PERSON_DELETE
-   NATURAL LEFT OUTER JOIN transducer._PERSON_PHONE
-   NATURAL LEFT OUTER JOIN transducer._PERSON_EMAIL
-   NATURAL LEFT OUTER JOIN transducer._DEPARTMENT
-   NATURAL LEFT OUTER JOIN transducer._DEPARTMENT_CITY
-   NATURAL LEFT OUTER JOIN transducer._CITY_COUNTRY);
+INSERT INTO temp_table (SELECT ssn, name, dep_name FROM );
 
 INSERT INTO transducer._city_country_DELETE_JOIN (SELECT city, country FROM temp_table);
 INSERT INTO transducer._department_city_DELETE_JOIN (SELECT dep_address, city FROM temp_table);
@@ -970,25 +898,17 @@ EXECUTE FUNCTION transducer._department_DELETE_fn();
 CREATE OR REPLACE FUNCTION transducer._department_DELETE_JOIN_FN()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
-
-create temporary table temp_table(
-ssn  VARCHAR(100),
-name  VARCHAR(100),
-phone  VARCHAR(100),
-email  VARCHAR(100),
-dep_name  VARCHAR(100),
-dep_address  VARCHAR(100),
-city  VARCHAR(100),
-country  VARCHAR(100)
+create temporary table temp_table (
+    ssn VARCHAR(100),
+    name VARCHAR(100),
+    phone VARCHAR(100),
+    email VARCHAR(100),
+    dep_name VARCHAR(100),
+    dep_address VARCHAR(100),
+    city VARCHAR(100),
+    country VARCHAR(100),
 );
-
-INSERT INTO temp_table (SELECT ssn, name, phone, email, dep_name, dep_address, city, country
-FROM transducer._DEPARTMENT_DELETE
-   NATURAL LEFT OUTER JOIN transducer._PERSON
-   NATURAL LEFT OUTER JOIN transducer._PERSON_PHONE
-   NATURAL LEFT OUTER JOIN transducer._PERSON_EMAIL
-   NATURAL LEFT OUTER JOIN transducer._DEPARTMENT_CITY
-   NATURAL LEFT OUTER JOIN transducer._CITY_COUNTRY);
+INSERT INTO temp_table (SELECT dep_name, dep_address FROM );
 
 INSERT INTO transducer._city_country_DELETE_JOIN (SELECT city, country FROM temp_table);
 INSERT INTO transducer._department_city_DELETE_JOIN (SELECT dep_address, city FROM temp_table);
@@ -1032,25 +952,17 @@ EXECUTE FUNCTION transducer._city_country_DELETE_fn();
 CREATE OR REPLACE FUNCTION transducer._city_country_DELETE_JOIN_FN()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
-
-create temporary table temp_table(
-ssn  VARCHAR(100),
-name  VARCHAR(100),
-phone  VARCHAR(100),
-email  VARCHAR(100),
-dep_name  VARCHAR(100),
-dep_address  VARCHAR(100),
-city  VARCHAR(100),
-country  VARCHAR(100)
+create temporary table temp_table (
+    ssn VARCHAR(100),
+    name VARCHAR(100),
+    phone VARCHAR(100),
+    email VARCHAR(100),
+    dep_name VARCHAR(100),
+    dep_address VARCHAR(100),
+    city VARCHAR(100),
+    country VARCHAR(100),
 );
-
-INSERT INTO temp_table (SELECT ssn, name, phone, email, dep_name, dep_address, city, country
-FROM transducer._CITY_COUNTRY_DELETE
-   NATURAL LEFT OUTER JOIN transducer._DEPARTMENT_CITY
-   NATURAL LEFT OUTER JOIN transducer._DEPARTMENT
-   NATURAL LEFT OUTER JOIN transducer._PERSON
-   NATURAL LEFT OUTER JOIN transducer._PERSON_PHONE
-   NATURAL LEFT OUTER JOIN transducer._PERSON_EMAIL);
+INSERT INTO temp_table (SELECT city, country FROM );
 
 INSERT INTO transducer._department_city_DELETE_JOIN (SELECT dep_address, city FROM temp_table);
 INSERT INTO transducer._department_DELETE_JOIN (SELECT dep_name, dep_address FROM temp_table);
@@ -1094,25 +1006,17 @@ EXECUTE FUNCTION transducer._person_email_DELETE_fn();
 CREATE OR REPLACE FUNCTION transducer._person_email_DELETE_JOIN_FN()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
-
-create temporary table temp_table(
-ssn  VARCHAR(100),
-name  VARCHAR(100),
-phone  VARCHAR(100),
-email  VARCHAR(100),
-dep_name  VARCHAR(100),
-dep_address  VARCHAR(100),
-city  VARCHAR(100),
-country  VARCHAR(100)
+create temporary table temp_table (
+    ssn VARCHAR(100),
+    name VARCHAR(100),
+    phone VARCHAR(100),
+    email VARCHAR(100),
+    dep_name VARCHAR(100),
+    dep_address VARCHAR(100),
+    city VARCHAR(100),
+    country VARCHAR(100),
 );
-
-INSERT INTO temp_table (SELECT ssn, name, phone, email, dep_name, dep_address, city, country
-FROM transducer._PERSON_EMAIL_DELETE
-   NATURAL LEFT OUTER JOIN transducer._PERSON
-   NATURAL LEFT OUTER JOIN transducer._PERSON_PHONE
-   NATURAL LEFT OUTER JOIN transducer._DEPARTMENT
-   NATURAL LEFT OUTER JOIN transducer._DEPARTMENT_CITY
-   NATURAL LEFT OUTER JOIN transducer._CITY_COUNTRY);
+INSERT INTO temp_table (SELECT ssn, email FROM );
 
 INSERT INTO transducer._city_country_DELETE_JOIN (SELECT city, country FROM temp_table);
 INSERT INTO transducer._department_city_DELETE_JOIN (SELECT dep_address, city FROM temp_table);
@@ -1156,25 +1060,17 @@ EXECUTE FUNCTION transducer._department_city_DELETE_fn();
 CREATE OR REPLACE FUNCTION transducer._department_city_DELETE_JOIN_FN()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
-
-create temporary table temp_table(
-ssn  VARCHAR(100),
-name  VARCHAR(100),
-phone  VARCHAR(100),
-email  VARCHAR(100),
-dep_name  VARCHAR(100),
-dep_address  VARCHAR(100),
-city  VARCHAR(100),
-country  VARCHAR(100)
+create temporary table temp_table (
+    ssn VARCHAR(100),
+    name VARCHAR(100),
+    phone VARCHAR(100),
+    email VARCHAR(100),
+    dep_name VARCHAR(100),
+    dep_address VARCHAR(100),
+    city VARCHAR(100),
+    country VARCHAR(100),
 );
-
-INSERT INTO temp_table (SELECT ssn, name, phone, email, dep_name, dep_address, city, country
-FROM transducer._DEPARTMENT_CITY_DELETE
-   NATURAL LEFT OUTER JOIN transducer._CITY_COUNTRY
-   NATURAL LEFT OUTER JOIN transducer._DEPARTMENT
-   NATURAL LEFT OUTER JOIN transducer._PERSON
-   NATURAL LEFT OUTER JOIN transducer._PERSON_PHONE
-   NATURAL LEFT OUTER JOIN transducer._PERSON_EMAIL);
+INSERT INTO temp_table (SELECT dep_address, city FROM );
 
 INSERT INTO transducer._city_country_DELETE_JOIN (SELECT city, country FROM temp_table);
 INSERT INTO transducer._department_DELETE_JOIN (SELECT dep_name, dep_address FROM temp_table);
@@ -1218,25 +1114,17 @@ EXECUTE FUNCTION transducer._person_phone_DELETE_fn();
 CREATE OR REPLACE FUNCTION transducer._person_phone_DELETE_JOIN_FN()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
-
-create temporary table temp_table(
-ssn  VARCHAR(100),
-name  VARCHAR(100),
-phone  VARCHAR(100),
-email  VARCHAR(100),
-dep_name  VARCHAR(100),
-dep_address  VARCHAR(100),
-city  VARCHAR(100),
-country  VARCHAR(100)
+create temporary table temp_table (
+    ssn VARCHAR(100),
+    name VARCHAR(100),
+    phone VARCHAR(100),
+    email VARCHAR(100),
+    dep_name VARCHAR(100),
+    dep_address VARCHAR(100),
+    city VARCHAR(100),
+    country VARCHAR(100),
 );
-
-INSERT INTO temp_table (SELECT ssn, name, phone, email, dep_name, dep_address, city, country
-FROM transducer._PERSON_PHONE_DELETE
-   NATURAL LEFT OUTER JOIN transducer._PERSON
-   NATURAL LEFT OUTER JOIN transducer._PERSON_EMAIL
-   NATURAL LEFT OUTER JOIN transducer._DEPARTMENT
-   NATURAL LEFT OUTER JOIN transducer._DEPARTMENT_CITY
-   NATURAL LEFT OUTER JOIN transducer._CITY_COUNTRY);
+INSERT INTO temp_table (SELECT ssn, phone FROM );
 
 INSERT INTO transducer._city_country_DELETE_JOIN (SELECT city, country FROM temp_table);
 INSERT INTO transducer._department_city_DELETE_JOIN (SELECT dep_address, city FROM temp_table);
@@ -1276,21 +1164,30 @@ WHERE ABS(loop_start) = row_count.rc_value) THEN
 ELSE
    RAISE NOTICE 'This should conclude with an INSERT on _EMPDEP';
         
-create temporary table temp_table_join(
-ssn  VARCHAR(100),
-name  VARCHAR(100),
-phone  VARCHAR(100),
-email  VARCHAR(100),
-dep_name  VARCHAR(100),
-dep_address  VARCHAR(100),
-city  VARCHAR(100),
-country  VARCHAR(100)
+create temporary table temp_table_join (
+    ssn VARCHAR(100),
+    name VARCHAR(100),
+    phone VARCHAR(100),
+    email VARCHAR(100),
+    dep_name VARCHAR(100),
+    dep_address VARCHAR(100),
+    city VARCHAR(100),
+    country VARCHAR(100),
 );
 
-INSERT INTO transducer._position (SELECT dep_address, city, country FROM temp_table_join) ON CONFLICT (dep_address) DO NOTHING;
+INSERT INTO temp_table_join(SELECT city, country FROM 
+ where ssn IS NOT NULL
+ AND name IS NOT NULL
+ AND phone IS NOT NULL
+ AND email IS NOT NULL
+ AND dep_name IS NOT NULL
+ AND dep_address IS NOT NULL
+ AND city IS NOT NULL
+ AND country IS NOT NULL
+ );
 
+INSERT INTO transducer._position (SELECT dep_address, city, country FROM temp_table_join) ON CONFLICT (dep_address) DO NOTHING;
 INSERT INTO transducer._loop VALUES (-1);
-        
 INSERT INTO transducer._empdep (SELECT ssn, name, phone, email, dep_name, dep_address FROM temp_table_join) ON CONFLICT (ssn, phone, email) DO NOTHING;
 
 DELETE FROM transducer._person_INSERT;

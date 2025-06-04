@@ -65,15 +65,11 @@ BEGIN
 """
 
         # Create temporary table
-        sql += f"""
-create temporary table temp_table(
-{self.universal.attributes}
-);
-"""
+        sql += self.universal.create_sql("temp_table", temp=True)
 
         to_sql = self.universal.mappings[
             self.create_table.table
-        ].to_sql_template.substitute({"suffix": suffix})
+        ].to_sql(primary_suffix = suffix)
         sql += f"\nINSERT INTO temp_table ({to_sql});\n"
 
         # Inserts

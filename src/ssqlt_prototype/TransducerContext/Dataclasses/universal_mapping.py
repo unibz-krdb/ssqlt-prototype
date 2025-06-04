@@ -3,12 +3,38 @@ import os
 from string import Template
 from typing import Self
 
+
 @dataclass
 class UniversalMapping:
     table_name: str
     partner_table_names: list[str]
     from_sql_template: Template
     to_sql_template: Template
+
+    def from_sql(self, universal_tablename) -> str:
+        """Generate SQL for the FROM mapping."""
+        return self.from_sql_template.substitute(
+            universal_tablename=universal_tablename
+        )
+
+    def to_sql(
+        self,
+        universal_tablename="",
+        primary_suffix="",
+        secondary_suffix="",
+        distinct: bool = False,
+    ) -> str:
+        """Generate SQL for the FROM mapping."""
+        if distinct:
+            select_preamble = "SELECT DISTINCT"
+        else:
+            select_preamble = "SELECT"
+        return self.from_sql_template.substitute(
+            universal_tablename=universal_tablename,
+            primary_suffix=primary_suffix,
+            secondary_suffix=secondary_suffix,
+            select_preamble=select_preamble,
+        )
 
     @classmethod
     def from_files(cls, from_file_path: str, to_file_path: str) -> Self:

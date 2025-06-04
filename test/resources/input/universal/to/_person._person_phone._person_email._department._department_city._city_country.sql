@@ -1,5 +1,5 @@
-   SELECT ssn, name, phone, email, dep_name, dep_address, city, country
-   FROM transducer._PERSON${suffix}
+   ${select_preamble} ssn, name, phone, email, dep_name, dep_address, city, country
+   FROM transducer._PERSON${primary_suffix}
    NATURAL LEFT OUTER JOIN transducer._PERSON_PHONE
    NATURAL LEFT OUTER JOIN transducer._PERSON_EMAIL
    NATURAL LEFT OUTER JOIN transducer._DEPARTMENT
