@@ -18,6 +18,8 @@ class ContextFilePaths:
     universal_attributes: str
     universal_mappings_from: list[str]
     universal_mappings_to: list[str]
+    universal_source_ordering: str
+    universal_target_ordering: str
 
     def __init__(self, context_paths: ContextDir) -> None:
 
@@ -73,20 +75,6 @@ class ContextFilePaths:
             map(lambda f: os.path.join(context_paths.source_mappings_dir, f), files)
         )
 
-        # Get source_ordering file
-        self.source_ordering = os.path.join(context_paths.source_dir, "ordering.txt")
-        if not os.path.exists(self.source_ordering):
-            raise FileNotFoundError(
-                f"Source ordering file not found at {self.source_ordering}"
-            )
-
-        # Get target_ordering file
-        self.target_ordering = os.path.join(context_paths.target_dir, "ordering.txt")
-        if not os.path.exists(self.target_ordering):
-            raise FileNotFoundError(
-                f"Target ordering file not found at {self.target_ordering}"
-            )
-
         # Get universal attributes file
         self.universal_attributes = os.path.join(
             context_paths.universal_dir, "attributes.sql"
@@ -103,6 +91,26 @@ class ContextFilePaths:
         self.universal_mappings_to = list(
             map(lambda f: os.path.join(context_paths.universal_mappings_to_dir, f), files)
         )
+
+        # Get universal source ordering file
+        self.universal_source_ordering = os.path.join(
+            context_paths.universal_orderings_dir, "source.txt"
+        )
+
+        if not os.path.exists(self.universal_source_ordering):
+           raise FileNotFoundError(
+                f"Universal source ordering file not found at {self.universal_source_ordering}"
+            )
+
+        # Get universal target ordering file
+        self.universal_target_ordering = os.path.join(
+            context_paths.universal_orderings_dir, "target.txt"
+        )
+        if not os.path.exists(self.universal_target_ordering):
+            raise FileNotFoundError(
+                f"Universal target ordering file not found at {self.universal_target_ordering}"
+            )
+
 
     @classmethod
     def from_dir(cls, path: str):

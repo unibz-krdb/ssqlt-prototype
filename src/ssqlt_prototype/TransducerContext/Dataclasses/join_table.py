@@ -4,6 +4,7 @@ from typing import Literal
 from .constraint import Constraint
 from .create_table import CreateTable
 from .universal import Universal
+from .enums import SourceTarget
 
 
 @dataclass
@@ -11,10 +12,9 @@ class JoinTable:
     create_table: CreateTable
     universal: Universal
 
-    def __init__(self, create_table: CreateTable, table_orderings: list[str], universal: Universal) -> None:
+    def __init__(self, create_table: CreateTable, universal: Universal) -> None:
         self.create_table = create_table
         self.universal = universal
-        self.table_orderings = table_orderings
         self.insert_tablename = create_table.table + "_INSERT_JOIN"
         self.delete_tablename = create_table.table + "_DELETE_JOIN"
 
@@ -38,12 +38,16 @@ class JoinTable:
 
     def _generate_function(self, tablename: str, insert_delete: Constraint.InsertDelete) -> str:
 
+        if self.create_table.source_target == SourceTarget.SOURCE:
+            ordering = self.universal.source_ordering
+        else:
+            ordering = self.universal.target_ordering
+
         if insert_delete == Constraint.InsertDelete.INSERT:
             suffix = "_INSERT"
-            ordering = list(reversed(self.table_orderings))
+            ordering = list(reversed(ordering))
         else:
             suffix = "_DELETE"
-            ordering = self.table_orderings
 
         # Function Header
         sql = f"""CREATE OR REPLACE FUNCTION {self.create_table.schema}.{tablename}_FN()
