@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from .constraint import Constraint
 from .create_table import CreateTable
 from .universal import Universal
 
@@ -10,9 +11,10 @@ class JoinTable:
     create_table: CreateTable
     universal: Universal
 
-    def __init__(self, create_table: CreateTable, universal: Universal) -> None:
+    def __init__(self, create_table: CreateTable, table_orderings: list[str], universal: Universal) -> None:
         self.create_table = create_table
         self.universal = universal
+        self.table_orderings = table_orderings
         self.insert_tablename = create_table.table + "_INSERT_JOIN"
         self.delete_tablename = create_table.table + "_DELETE_JOIN"
 
@@ -29,12 +31,19 @@ class JoinTable:
         return self._create_sql(self.delete_tablename)
 
     def generate_insert_function(self) -> str:
-        return self._generate_function(self.insert_tablename, suffix="_INSERT")
+        return self._generate_function(self.insert_tablename, insert_delete=Constraint.InsertDelete.INSERT)
 
     def generate_delete_function(self) -> str:
-        return self._generate_function(self.delete_tablename, suffix="_DELETE")
+        return self._generate_function(self.delete_tablename, insert_delete=Constraint.InsertDelete.DELETE)
 
-    def _generate_function(self, tablename: str, suffix: str) -> str:
+    def _generate_function(self, tablename: str, insert_delete: Constraint.InsertDelete) -> str:
+
+        if insert_delete == Constraint.InsertDelete.INSERT:
+            suffix = "_INSERT"
+            ordering = list(reversed(self.table_orderings))
+        else:
+            suffix = "_DELETE"
+            ordering = self.table_orderings
 
         # Function Header
         sql = f"""CREATE OR REPLACE FUNCTION {self.create_table.schema}.{tablename}_FN()
@@ -49,14 +58,12 @@ create temporary table temp_table(
 );
 """
 
-        mappings = self.universal.mappings[self.create_table.table]
-
         to_sql = self.universal.mappings[self.create_table.table].to_sql_template.substitute({"suffix": suffix})
         sql += f"\nINSERT INTO temp_table ({to_sql});\n"
 
         # Insert partners
 
-        for partner_table in mappings.partner_table_names:
+        for partner_table in ordering[:-1]:
             partner_sql = self.universal.mappings[
                 partner_table
             ].from_sql_template.substitute({"universal_tablename": "temp_table"})
@@ -68,7 +75,10 @@ create temporary table temp_table(
 
         # Insert into the join table
 
-        sql += f"\nINSERT INTO {self.create_table.schema}.{tablename} ({mappings.from_sql_template.substitute({'universal_tablename': 'temp_table'})});"
+        partner_sql = self.universal.mappings[
+            ordering[-1]
+        ].from_sql_template.substitute({"universal_tablename": "temp_table"})
+        sql += f"\nINSERT INTO {self.create_table.schema}.{ordering[-1]}{suffix}_JOIN ({partner_sql});"
 
         # Conclude
 
