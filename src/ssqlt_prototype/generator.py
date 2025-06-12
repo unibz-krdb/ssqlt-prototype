@@ -14,21 +14,21 @@ class Generator:
         self.insert_tables = {}
         self.delete_tables = {}
 
-        for tablename, table in context.source_tables.items():
+        for tablename, table in context.source.tables.items():
             self.schema = table.schema
 
-            mapping = context.source_mappings[tablename]
+            mapping = context.source.mappings[tablename]
             self.insert_tables[tablename] = InsertTable(source=table, mapping=mapping)
             self.delete_tables[tablename] = DeleteTable(source=table)
 
-        for tablename, table in context.target_tables.items():
-            mapping = context.target_mappings[tablename]
+        for tablename, table in context.target.tables.items():
+            mapping = context.target.mappings[tablename]
             self.insert_tables[tablename] = InsertTable(source=table, mapping=mapping)
             self.delete_tables[tablename] = DeleteTable(source=table)
 
         self.join_tables = {}
-        for create_table in list(self.context.source_tables.values()) + list(
-            self.context.target_tables.values()
+        for create_table in list(self.context.source.tables.values()) + list(
+            self.context.target.tables.values()
         ):
             self.join_tables[create_table.table] = JoinTable(
                 create_table=create_table,
@@ -51,14 +51,14 @@ class Generator:
 
         transducer += "/* SOURCE TABLES */\n\n"
 
-        for table in self.context.source_tables.values():
+        for table in self.context.source.tables.values():
             transducer += table.sql + "\n\n"
 
         # STEP 2: Write source constraints
 
         transducer += "/* SOURCE CONSTRAINTS */\n\n"
 
-        for constraints in self.context.source_constraints.values():
+        for constraints in self.context.source.constraints.values():
             for constraint in constraints:
                 transducer += constraint.generate_function() + "\n\n"
                 transducer += constraint.generate_trigger() + "\n\n\n"
@@ -67,14 +67,14 @@ class Generator:
 
         transducer += "/* TARGET TABLES */\n\n"
 
-        for table in self.context.target_tables.values():
+        for table in self.context.target.tables.values():
             transducer += table.sql + "\n\n"
 
         # STEP 4: Write target table constraints
 
         transducer += "/* TARGET CONSTRAINTS */\n\n"
 
-        for constraints in self.context.target_constraints.values():
+        for constraints in self.context.target.constraints.values():
             for constraint in constraints:
                 transducer += constraint.generate_function() + "\n\n"
                 transducer += constraint.generate_trigger() + "\n\n\n"
@@ -133,6 +133,9 @@ class Generator:
 
         transducer += "/* S->T INSERTS */\n"
         transducer += self.context.generate_target_insert()
+
+        transducer += "/* T->S INSERTS */\n"
+        transducer += self.context.generate_source_insert()
 
         return transducer
 

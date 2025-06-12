@@ -1,68 +1,34 @@
 from dataclasses import dataclass
 from typing import Self
 
-from ssqlt_prototype.TransducerContext.Dataclasses.enums import SourceTarget
-
 from .context_dir import ContextDir
 from .context_file_paths import ContextFilePaths
-from .Dataclasses import Constraint, CreateTable, Mapping, Universal
+from .Dataclasses import Universal
+from .db_context import DbContext
 
 
 @dataclass
 class Context:
-    source_tables: dict[str, CreateTable]
-    source_constraints: dict[str, list[Constraint]]
-    source_mappings: dict[str, Mapping]
 
-    target_tables: dict[str, CreateTable]
-    target_constraints: dict[str, list[Constraint]]
-    target_mappings: dict[str, Mapping]
-
+    source: DbContext
+    target: DbContext
     universal: Universal
 
     def __init__(self, context_files: ContextFilePaths) -> None:
-        # SOURCE
-        self.source_tables = {}
-        for file_path in context_files.source_creates:
-            create_table = CreateTable.from_file(
-                file_path, source_target=SourceTarget.SOURCE
-            )
-            self.source_tables[create_table.table] = create_table
 
-        self.source_constraints = {}
-        for file_path in context_files.source_constraints:
-            constraint = Constraint.from_file(file_path)
-            if constraint.table not in self.source_constraints:
-                self.source_constraints[constraint.table] = []
-            self.source_constraints[constraint.table].append(constraint)
+        self.source = DbContext.from_files(
+            create_paths=context_files.source_creates,
+            constraint_paths=context_files.source_constraints,
+            mapping_paths=context_files.target_to_source_mappings,
+            full_join_path=context_files.source_full_join,
+        )
 
-        self.source_mappings = {}
-        for file_path in context_files.target_to_source_mappings:
-            mapping = Mapping.from_file(file_path)
-            self.source_mappings[mapping.target_table] = mapping
-
-        # TARGET
-
-        self.target_tables = {}
-        for file_path in context_files.target_creates:
-            create_table = CreateTable.from_file(
-                file_path, source_target=SourceTarget.TARGET
-            )
-            self.target_tables[create_table.table] = create_table
-
-        self.target_constraints = {}
-        for file_path in context_files.target_constraints:
-            constraint = Constraint.from_file(file_path)
-            if constraint.table not in self.target_constraints:
-                self.target_constraints[constraint.table] = []
-            self.target_constraints[constraint.table].append(constraint)
-
-        self.target_mappings = {}
-        for file_path in context_files.source_to_target_mappings:
-            mapping = Mapping.from_file(file_path)
-            self.target_mappings[mapping.target_table] = mapping
-
-        # UNIVERSAL
+        self.target = DbContext.from_files(
+            create_paths=context_files.target_creates,
+            constraint_paths=context_files.target_constraints,
+            mapping_paths=context_files.source_to_target_mappings,
+            full_join_path=context_files.target_full_join,
+        )
 
         self.universal = Universal.from_files(
             attribute_path=context_files.universal_attributes,
@@ -128,7 +94,7 @@ ELSE
         # Other inserts
 
         table = source_orderings[0]
-        create_table = self.source_tables[table]
+        create_table = self.source.tables[table]
 
         mapping_str = self.universal.mappings[table].from_sql(
             universal_tablename=temp_tablename
@@ -139,7 +105,7 @@ INSERT INTO {schema}._loop VALUES (-1);
 """
 
         for table in source_orderings[1:]:
-            create_table = self.source_tables[table]
+            create_table = self.source.tables[table]
             mapping_str = self.universal.mappings[table].from_sql(
                 universal_tablename=temp_tablename
             )
@@ -168,6 +134,38 @@ END;    $$;
 """
 
         return result
+
+    def generate_source_insert(self):
+
+        schema = "transducer"  # TODO Hardcoded
+
+        def get_insert(target: str):
+            result = f"INSERT INTO {schema}.{target}"
+            table = self.target.tables[target]
+            join_tables = list(
+                filter(lambda x: x.table != target, self.source.tables.values())
+            )
+            join_expressions = []
+            for join_table in join_tables:
+                null_expr = "AND ".join(
+                    map(lambda x: x + " IS NOT NULL ", join_table.pkey)
+                )
+                join_expression = f"\nNATURAL LEFT OUTER JOIN {schema}.{join_table.table}_INSERT_JOIN where {null_expr}"
+                join_expressions.append(join_expression)
+            join_expression = f"{schema}.{target}_INSERT_JOIN" + "".join(
+                join_expressions
+            )
+            result += (
+                " ("
+                + self.universal.mappings[target].from_sql(
+                    universal_tablename="".join(join_expressions)
+                )
+                + ")"
+            )
+            result += f"ON CONFLICT ({', '.join(table.pkey)}) DO NOTHING;"
+            return result
+
+        return get_insert("_city_country")
 
     def generate_target_delete(self):
         return NotImplementedError("Target delete generation is not implemented yet.")

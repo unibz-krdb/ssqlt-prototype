@@ -9,11 +9,13 @@ class ContextFilePaths:
     source_constraints: list[str]
     source_to_target_mappings: list[str]
     source_ordering: str
+    source_full_join: str
 
     target_creates: list[str]
     target_constraints: list[str]
     target_to_source_mappings: list[str]
     target_ordering: str
+    target_full_join: str
 
     universal_attributes: str
     universal_mappings_from: list[str]
@@ -73,6 +75,22 @@ class ContextFilePaths:
         self.target_to_source_mappings = list(
             map(lambda f: os.path.join(context_paths.source_mappings_dir, f), files)
         )
+
+        # Full Joins
+
+        file = os.path.join(context_paths.source_dir, "full_join.sql")
+        if not os.path.exists(file):
+            raise FileNotFoundError(
+                f"No full join file found in {context_paths.source_dir}"
+            )
+        self.source_full_join = file
+
+        file = os.path.join(context_paths.target_dir, "full_join.sql")
+        if not os.path.exists(file):
+            raise FileNotFoundError(
+                f"No full join file found in {context_paths.target_dir}"
+            )
+        self.target_full_join = file
 
         # Get universal attributes file
         self.universal_attributes = os.path.join(

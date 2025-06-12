@@ -20,16 +20,15 @@ class CreateTable:
         sql: str,
         pkey: list[str],
         fkey: list[str],
-        source_target: SourceTarget,
     ) -> None:
         self.schema = schema
         self.table = table
         self.sql = sql
         self.pkey = pkey
-        self.source_target = source_target
+        self.fkey = fkey
 
     @classmethod
-    def from_file(cls, file_path: str, source_target: SourceTarget) -> Self:
+    def from_file(cls, file_path: str) -> Self:
         filename = os.path.basename(file_path)
         tokens = filename.split(".")
         schema = tokens[0]
@@ -53,5 +52,5 @@ class CreateTable:
             fkey = sql[index + fkeyshift : index + fkeyshift + fkeyend].split(",")
 
         return cls(
-            schema, table, sql, pkey=pkey.split(","), source_target=source_target, fkey=fkey
+            schema, table, sql, pkey=pkey.split(","), fkey=fkey
         )
