@@ -43,14 +43,15 @@ class JoinTable:
     def _generate_function(
         self, tablename: str, insert_delete: Constraint.InsertDelete
     ) -> str:
-
         mappings = self.universal.mappings[self.create_table.table]
 
         ordering = self.universal.source_ordering + self.universal.target_ordering
-        ordering = list(filter(
-            lambda x: x in mappings.partner_table_names,
-            ordering,
-        ))
+        ordering = list(
+            filter(
+                lambda x: x in mappings.partner_table_names,
+                ordering,
+            )
+        )
 
         if insert_delete == Constraint.InsertDelete.INSERT:
             suffix = "_INSERT"
@@ -67,17 +68,17 @@ BEGIN
         # Create temporary table
         sql += self.universal.create_sql("temp_table", temp=True)
 
-        to_sql = self.universal.mappings[
-            self.create_table.table
-        ].to_sql(primary_suffix = suffix)
+        to_sql = self.universal.mappings[self.create_table.table].to_sql(
+            primary_suffix=suffix
+        )
         sql += f"\nINSERT INTO temp_table ({to_sql});\n"
 
         # Inserts
 
         for table in ordering[:-1]:
-            partner_sql = self.universal.mappings[
-                table
-            ].from_sql_template.substitute({"universal_tablename": "temp_table"})
+            partner_sql = self.universal.mappings[table].from_sql_template.substitute(
+                {"universal_tablename": "temp_table"}
+            )
             sql += f"\nINSERT INTO {self.create_table.schema}.{table}{suffix}_JOIN ({partner_sql});"
 
         sql += "\nINSERT INTO transducer._loop VALUES (1);"

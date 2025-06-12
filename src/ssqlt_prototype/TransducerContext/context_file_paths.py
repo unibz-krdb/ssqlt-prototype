@@ -22,7 +22,6 @@ class ContextFilePaths:
     universal_target_ordering: str
 
     def __init__(self, context_paths: ContextDir) -> None:
-
         # Get source_create file
         files = os.listdir(context_paths.source_create_dir)
         if len(files) == 0:
@@ -83,13 +82,19 @@ class ContextFilePaths:
         # Get combined_from_mappings files
         files = os.listdir(context_paths.universal_mappings_from_dir)
         self.universal_mappings_from = list(
-            map(lambda f: os.path.join(context_paths.universal_mappings_from_dir, f), files)
+            map(
+                lambda f: os.path.join(context_paths.universal_mappings_from_dir, f),
+                files,
+            )
         )
 
         # Get combined_to_mappings files
         files = os.listdir(context_paths.universal_mappings_to_dir)
         self.universal_mappings_to = list(
-            map(lambda f: os.path.join(context_paths.universal_mappings_to_dir, f), files)
+            map(
+                lambda f: os.path.join(context_paths.universal_mappings_to_dir, f),
+                files,
+            )
         )
 
         # Get universal source ordering file
@@ -98,7 +103,7 @@ class ContextFilePaths:
         )
 
         if not os.path.exists(self.universal_source_ordering):
-           raise FileNotFoundError(
+            raise FileNotFoundError(
                 f"Universal source ordering file not found at {self.universal_source_ordering}"
             )
 
@@ -110,7 +115,6 @@ class ContextFilePaths:
             raise FileNotFoundError(
                 f"Universal target ordering file not found at {self.universal_target_ordering}"
             )
-
 
     @classmethod
     def from_dir(cls, path: str):

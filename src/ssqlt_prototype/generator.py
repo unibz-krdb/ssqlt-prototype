@@ -27,7 +27,9 @@ class Generator:
             self.delete_tables[tablename] = DeleteTable(source=table)
 
         self.join_tables = {}
-        for create_table in list(self.context.source_tables.values()) + list(self.context.target_tables.values()):
+        for create_table in list(self.context.source_tables.values()) + list(
+            self.context.target_tables.values()
+        ):
             self.join_tables[create_table.table] = JoinTable(
                 create_table=create_table,
                 universal=self.context.universal,

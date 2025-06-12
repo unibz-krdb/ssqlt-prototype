@@ -3,6 +3,7 @@ from fixtures import resource_dir as resource_dir, input_dir as input_dir
 
 from ssqlt_prototype import Constraint
 
+
 def test_from_file(input_dir):
     file_path = os.path.join(
         input_dir, "source", "constraints", "transducer._empdep.fd.1.insert.sql"

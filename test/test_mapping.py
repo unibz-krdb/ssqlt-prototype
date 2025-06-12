@@ -5,6 +5,7 @@ import pytest
 
 from ssqlt_prototype import Mapping
 
+
 def test_from_file(input_dir):
     file_path = os.path.join(
         input_dir, "target", "mappings", "transducer._empdep._person.sql"

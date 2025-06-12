@@ -47,7 +47,6 @@ class Universal:
         source_ordering_path: str,
         target_ordering_path: str,
     ) -> Self:
-
         attributes = []
         types = []
         with open(attribute_path, "r") as f:

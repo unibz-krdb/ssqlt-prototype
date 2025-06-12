@@ -3,9 +3,9 @@ import os
 from typing import Self
 from enum import Enum
 
+
 @dataclass
 class Constraint:
-
     class InsertDelete(Enum):
         INSERT = "insert"
         DELETE = "delete"

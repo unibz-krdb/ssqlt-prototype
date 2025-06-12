@@ -86,7 +86,6 @@ class ContextDir:
                 f"Path {self.universal_orderings_dir} does not exist."
             )
 
-
     @classmethod
     def from_dir(cls, path: str) -> "ContextDir":
         """Create a ContextDir instance from a given directory path."""

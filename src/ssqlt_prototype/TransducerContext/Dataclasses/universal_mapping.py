@@ -38,7 +38,6 @@ class UniversalMapping:
 
     @classmethod
     def from_files(cls, from_file_path: str, to_file_path: str) -> Self:
-
         with open(from_file_path, "r") as f:
             from_sql_template = Template(f.read().strip())
 

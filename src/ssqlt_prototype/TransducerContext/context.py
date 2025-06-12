@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from typing import Self
-from functools import partial
 
 from ssqlt_prototype.TransducerContext.Dataclasses.enums import SourceTarget
 
@@ -22,7 +21,6 @@ class Context:
     universal: Universal
 
     def __init__(self, context_files: ContextFilePaths) -> None:
-
         # SOURCE
         self.source_tables = {}
         for file_path in context_files.source_creates:

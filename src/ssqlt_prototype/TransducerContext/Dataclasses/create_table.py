@@ -12,7 +12,14 @@ class CreateTable:
     sql: str
     pkey: list[str]
 
-    def __init__(self, schema: str, table: str, sql: str, pkey: list[str], source_target: SourceTarget) -> None:
+    def __init__(
+        self,
+        schema: str,
+        table: str,
+        sql: str,
+        pkey: list[str],
+        source_target: SourceTarget,
+    ) -> None:
         self.schema = schema
         self.table = table
         self.sql = sql
@@ -31,7 +38,9 @@ class CreateTable:
         # find primary key
         index = sql.find("PRIMARY KEY")
         pkeyshift = sql[index:].find("(") + 1
-        pkeyend = sql[index + pkeyshift:].find(")")
-        pkey = sql[index + pkeyshift:index + pkeyshift + pkeyend]
+        pkeyend = sql[index + pkeyshift :].find(")")
+        pkey = sql[index + pkeyshift : index + pkeyshift + pkeyend]
 
-        return cls(schema, table, sql, pkey=pkey.split(","), source_target=source_target)
+        return cls(
+            schema, table, sql, pkey=pkey.split(","), source_target=source_target
+        )
