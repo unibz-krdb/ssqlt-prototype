@@ -46,3 +46,6 @@ class DbContext:
             mappings=mappings,
             _full_join=Template(full_join_str),
         )
+
+    def full_join(self, suffix: str = ""):
+        return self._full_join.substitute(suffix=suffix)

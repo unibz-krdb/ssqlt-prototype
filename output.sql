@@ -1210,3 +1210,41 @@ DROP TABLE temp_table_join;
 RETURN NEW;
 END IF;
 END;    $$;
+/* T->S INSERTS */
+
+CREATE OR REPLACE FUNCTION transducer.source_insert_fn()
+RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+BEGIN
+RAISE NOTICE 'Something got added in a JOIN table';
+IF NOT EXISTS (SELECT * FROM transducer._loop, (SELECT COUNT(*) as rc_value FROM transducer._loop) AS row_count
+WHERE ABS(loop_start) = row_count.rc_value) THEN
+   RAISE NOTICE 'But now is not the time to generate the query';
+   RETURN NULL;
+ELSE
+   RAISE NOTICE 'This should conclude with an INSERT on _EMPDEP';
+
+	INSERT INTO transducer._city_country FROM (SELECT city, country FROM transducer._EMPDEP_INSERT_JOIN
+NATURAL LEFT OUTER JOIN transducer._POSITION_INSERT_JOIN WHERE ssn IS NOT NULL AND dep_address IS NOT NULL) ON CONFLICT (city) DO NOTHING;
+
+	INSERT INTO transducer._department_city FROM (SELECT dep_address, city FROM transducer._EMPDEP_INSERT_JOIN
+NATURAL LEFT OUTER JOIN transducer._POSITION_INSERT_JOIN WHERE ssn IS NOT NULL AND dep_address IS NOT NULL) ON CONFLICT (dep_address) DO NOTHING;
+
+	INSERT INTO transducer._department FROM (SELECT dep_name, dep_address FROM transducer._EMPDEP_INSERT_JOIN
+NATURAL LEFT OUTER JOIN transducer._POSITION_INSERT_JOIN WHERE ssn IS NOT NULL AND dep_address IS NOT NULL) ON CONFLICT (dep_name) DO NOTHING;
+
+	INSERT INTO transducer._person_email FROM (SELECT ssn, email FROM transducer._EMPDEP_INSERT_JOIN
+NATURAL LEFT OUTER JOIN transducer._POSITION_INSERT_JOIN WHERE ssn IS NOT NULL AND dep_address IS NOT NULL) ON CONFLICT (ssn,email) DO NOTHING;
+
+	INSERT INTO transducer._person_phone FROM (SELECT ssn, phone FROM transducer._EMPDEP_INSERT_JOIN
+NATURAL LEFT OUTER JOIN transducer._POSITION_INSERT_JOIN WHERE ssn IS NOT NULL AND dep_address IS NOT NULL) ON CONFLICT (ssn,phone) DO NOTHING;
+
+	INSERT INTO transducer._person FROM (SELECT ssn, name, dep_name FROM transducer._EMPDEP_INSERT_JOIN
+NATURAL LEFT OUTER JOIN transducer._POSITION_INSERT_JOIN WHERE ssn IS NOT NULL AND dep_address IS NOT NULL) ON CONFLICT (ssn) DO NOTHING;
+
+	DELETE FROM transducer._empdep_INSERT;
+	DELETE FROM transducer._position_INSERT;
+	DELETE FROM transducer._empdep_INSERT_JOIN;
+	DELETE FROM transducer._position_INSERT_JOIN;
+	DELETE FROM transducer._loop NEW;
+END IF;
+END;  $$;

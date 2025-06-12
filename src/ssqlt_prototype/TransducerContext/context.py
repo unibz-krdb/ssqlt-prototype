@@ -139,33 +139,47 @@ END;    $$;
 
         schema = "transducer"  # TODO Hardcoded
 
+        result = f"""
+CREATE OR REPLACE FUNCTION {schema}.source_insert_fn()
+RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+BEGIN
+RAISE NOTICE 'Something got added in a JOIN table';
+IF NOT EXISTS (SELECT * FROM transducer._loop, (SELECT COUNT(*) as rc_value FROM transducer._loop) AS row_count
+WHERE ABS(loop_start) = row_count.rc_value) THEN
+   RAISE NOTICE 'But now is not the time to generate the query';
+   RETURN NULL;
+ELSE
+   RAISE NOTICE 'This should conclude with an INSERT on _EMPDEP';"""
+
         def get_insert(target: str):
-            result = f"INSERT INTO {schema}.{target}"
             table = self.target.tables[target]
-            join_tables = list(
-                filter(lambda x: x.table != target, self.source.tables.values())
+            mapping_str = self.universal.mappings[target].from_sql(
+                self.source.full_join("_INSERT_JOIN")
             )
-            join_expressions = []
-            for join_table in join_tables:
-                null_expr = "AND ".join(
-                    map(lambda x: x + " IS NOT NULL ", join_table.pkey)
-                )
-                join_expression = f"\nNATURAL LEFT OUTER JOIN {schema}.{join_table.table}_INSERT_JOIN where {null_expr}"
-                join_expressions.append(join_expression)
-            join_expression = f"{schema}.{target}_INSERT_JOIN" + "".join(
-                join_expressions
-            )
-            result += (
-                " ("
-                + self.universal.mappings[target].from_sql(
-                    universal_tablename="".join(join_expressions)
-                )
-                + ")"
-            )
-            result += f"ON CONFLICT ({', '.join(table.pkey)}) DO NOTHING;"
+            result = f"\n\tINSERT INTO {schema}.{target} FROM "
+            result += "(" + mapping_str + ")"
+            result += " ON CONFLICT (" + ",".join(table.pkey) + ") DO NOTHING;"
             return result
 
-        return get_insert("_city_country")
+        for target in self.universal.target_ordering:
+            result += "\n" + get_insert(target)
+
+        result += "\n"
+
+        for tablename in reversed(self.universal.source_ordering):
+            result += f"\n\tDELETE FROM {schema}.{tablename}_INSERT;"
+        for tablename in reversed(self.universal.source_ordering):
+            result += f"\n\tDELETE FROM {schema}.{tablename}_INSERT_JOIN;"
+
+        result += f"\n\tDELETE FROM {schema}._loop NEW;"
+
+        result += """
+END IF;
+END;  $$;
+"""
+
+        return result
+        # return get_insert("_city_country")
 
     def generate_target_delete(self):
         return NotImplementedError("Target delete generation is not implemented yet.")
