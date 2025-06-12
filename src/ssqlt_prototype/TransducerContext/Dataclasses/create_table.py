@@ -11,6 +11,7 @@ class CreateTable:
     table: str
     sql: str
     pkey: list[str]
+    fkey: list[str]
 
     def __init__(
         self,
@@ -18,6 +19,7 @@ class CreateTable:
         table: str,
         sql: str,
         pkey: list[str],
+        fkey: list[str],
         source_target: SourceTarget,
     ) -> None:
         self.schema = schema
@@ -41,6 +43,15 @@ class CreateTable:
         pkeyend = sql[index + pkeyshift :].find(")")
         pkey = sql[index + pkeyshift : index + pkeyshift + pkeyend]
 
+        # find foreign keys
+        index = sql.find("FOREIGN KEY")
+        if index == -1:
+            fkey = []
+        else:
+            fkeyshift = sql[index:].find("(") + 1
+            fkeyend = sql[index + fkeyshift :].find(")")
+            fkey = sql[index + fkeyshift : index + fkeyshift + fkeyend].split(",")
+
         return cls(
-            schema, table, sql, pkey=pkey.split(","), source_target=source_target
+            schema, table, sql, pkey=pkey.split(","), source_target=source_target, fkey=fkey
         )
