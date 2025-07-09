@@ -29,7 +29,7 @@ class UniversalMapping:
             select_preamble = "SELECT DISTINCT"
         else:
             select_preamble = "SELECT"
-        return self.from_sql_template.substitute(
+        return self.to_sql_template.substitute(
             universal_tablename=universal_tablename,
             primary_suffix=primary_suffix,
             secondary_suffix=secondary_suffix,
