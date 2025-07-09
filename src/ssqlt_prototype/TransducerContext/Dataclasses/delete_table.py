@@ -39,7 +39,7 @@ END;  $$;
         return sql
 
     def generate_trigger(self) -> str:
-        sql = f"""CREATE TRIGGER {self.source.schema}.{self.table}_trigger
+        sql = f"""CREATE TRIGGER {self.source.schema}_{self.table}_trigger
 AFTER DELETE ON {self.source.schema}.{self.source.table}
 FOR EACH ROW
 EXECUTE FUNCTION {self.source.schema}.{self.table}_fn();

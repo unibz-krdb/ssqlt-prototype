@@ -46,7 +46,7 @@ class Constraint:
 RETURNS TRIGGER LANGUAGE PLPGSQL AS {self.sql}"""
 
     def generate_trigger(self) -> str:
-        return f"""CREATE TRIGGER {self.schema}.{self._trigger_name()}
+        return f"""CREATE TRIGGER {self.schema}_{self._trigger_name()}
 BEFORE {self.insert_delete.name} ON {self.schema}.{self.table}
 FOR EACH ROW
 EXECUTE FUNCTION {self.schema}.{self._function_name()}();"""
