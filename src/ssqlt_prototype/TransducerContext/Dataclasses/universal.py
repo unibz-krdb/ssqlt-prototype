@@ -32,9 +32,10 @@ class Universal:
             sql += " temporary"
         sql += f" table {tablename} (\n"
 
+        strs = []
         for attribute, type_ in zip(self.attributes, self.types):
-            sql += f"    {attribute} {type_},\n"
-        sql += ");"
+            strs.append(f"{attribute} {type_}")
+        sql += ",\n".join(strs) + ");"
 
         return sql
 
