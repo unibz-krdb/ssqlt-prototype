@@ -21,6 +21,7 @@ class Context:
             constraint_paths=context_files.source_constraints,
             mapping_paths=context_files.target_to_source_mappings,
             full_join_path=context_files.source_full_join,
+            dep_orderings_path=context_files.source_dep_ordering,
         )
 
         self.target = DbContext.from_files(
@@ -28,6 +29,7 @@ class Context:
             constraint_paths=context_files.target_constraints,
             mapping_paths=context_files.source_to_target_mappings,
             full_join_path=context_files.target_full_join,
+            dep_orderings_path=context_files.target_dep_ordering,
         )
 
         self.universal = Universal.from_files(

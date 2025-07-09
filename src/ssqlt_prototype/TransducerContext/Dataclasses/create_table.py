@@ -2,8 +2,6 @@ import os
 from dataclasses import dataclass
 from typing import Self
 
-from .enums import SourceTarget
-
 
 @dataclass
 class CreateTable:

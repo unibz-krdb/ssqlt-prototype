@@ -10,6 +10,7 @@ class DbContext:
     constraints: dict[str, list[Constraint]]
     mappings: dict[str, Mapping]
     _full_join: Template
+    dep_orderings: list[str]
 
     @classmethod
     def from_files(
@@ -18,6 +19,7 @@ class DbContext:
         constraint_paths: list[str],
         mapping_paths: list[str],
         full_join_path: str,
+        dep_orderings_path: str,
     ) -> "DbContext":
 
         tables = {}
@@ -40,11 +42,15 @@ class DbContext:
         with open(full_join_path, "r") as f:
             full_join_str = f.read().strip()
 
+        with open(dep_orderings_path, "r") as f:
+            dep_orderings = [line.strip() for line in f if line.strip()]
+
         return cls(
             tables=tables,
             constraints=constraints,
             mappings=mappings,
             _full_join=Template(full_join_str),
+            dep_orderings=dep_orderings,
         )
 
     def full_join(self, suffix: str = ""):

@@ -51,7 +51,8 @@ class Generator:
 
         transducer += "/* SOURCE TABLES */\n\n"
 
-        for table in self.context.source.tables.values():
+        for source_tablename in self.context.source.dep_orderings:
+            table = self.context.source.tables[source_tablename]
             transducer += table.sql + "\n\n"
 
         # STEP 2: Write source constraints
@@ -67,7 +68,8 @@ class Generator:
 
         transducer += "/* TARGET TABLES */\n\n"
 
-        for table in self.context.target.tables.values():
+        for target_tablename in self.context.target.dep_orderings:
+            table = self.context.target.tables[target_tablename]
             transducer += table.sql + "\n\n"
 
         # STEP 4: Write target table constraints

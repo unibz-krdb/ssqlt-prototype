@@ -8,12 +8,14 @@ class ContextFilePaths:
     source_creates: list[str]
     source_constraints: list[str]
     source_to_target_mappings: list[str]
+    source_dep_ordering: str
     source_ordering: str
     source_full_join: str
 
     target_creates: list[str]
     target_constraints: list[str]
     target_to_source_mappings: list[str]
+    target_dep_ordering: str
     target_ordering: str
     target_full_join: str
 
@@ -75,6 +77,21 @@ class ContextFilePaths:
         self.target_to_source_mappings = list(
             map(lambda f: os.path.join(context_paths.source_mappings_dir, f), files)
         )
+
+        # Dependency Orderings
+        file = os.path.join(context_paths.source_dir, "dep_ordering.txt")
+        if not os.path.exists(file):
+            raise FileNotFoundError(
+                f"No source dependency ordering file found in {context_paths.source_dir}"
+            )
+        self.source_dep_ordering = file
+
+        file = os.path.join(context_paths.target_dir, "dep_ordering.txt")
+        if not os.path.exists(file):
+            raise FileNotFoundError(
+                f"No target dependency ordering file found in {context_paths.target_dir}"
+            )
+        self.target_dep_ordering = file
 
         # Full Joins
 
