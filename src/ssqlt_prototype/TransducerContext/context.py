@@ -158,8 +158,8 @@ ELSE
             mapping_str = self.universal.mappings[target].from_sql(
                 self.source.full_join("_INSERT_JOIN")
             )
-            result = f"\n\tINSERT INTO {schema}.{target} FROM "
-            result += "(" + mapping_str + ")"
+            result = f"\n\tINSERT INTO {schema}.{target} "
+            result += "" + mapping_str + ""
             result += " ON CONFLICT (" + ",".join(table.pkey) + ") DO NOTHING;"
             return result
 
