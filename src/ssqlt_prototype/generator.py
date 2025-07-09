@@ -18,12 +18,20 @@ class Generator:
             self.schema = table.schema
 
             mapping = context.source.mappings[tablename]
-            self.insert_tables[tablename] = InsertTable(source=table, mapping=mapping)
+            self.insert_tables[tablename] = InsertTable(
+                source=table,
+                mapping=mapping,
+                universal_mapping=context.universal.mappings[tablename],
+            )
             self.delete_tables[tablename] = DeleteTable(source=table)
 
         for tablename, table in context.target.tables.items():
             mapping = context.target.mappings[tablename]
-            self.insert_tables[tablename] = InsertTable(source=table, mapping=mapping)
+            self.insert_tables[tablename] = InsertTable(
+                source=table,
+                mapping=mapping,
+                universal_mapping=context.universal.mappings[tablename],
+            )
             self.delete_tables[tablename] = DeleteTable(source=table)
 
         self.join_tables = {}
@@ -91,11 +99,11 @@ class Generator:
 
         # STEP 6: Write delete table
 
-        transducer += "/* DELETE TABLES */\n\n"
+        #transducer += "/* DELETE TABLES */\n\n"
 
-        for table in self.delete_tables:
-            transducer += self.delete_tables[table].create_sql() + "\n\n"
-            transducer += self.join_tables[table].create_delete_sql() + "\n\n"
+        #for table in self.delete_tables:
+        #    transducer += self.delete_tables[table].create_sql() + "\n\n"
+        #    transducer += self.join_tables[table].create_delete_sql() + "\n\n"
 
         # STEP 7: Loop Prevention Mechanism
 
@@ -119,15 +127,15 @@ class Generator:
 
         # STEP 9: Write delete functions
 
-        transducer += "/* DELETE FUNCTIONS & TRIGGERS */\n\n"
+        #transducer += "/* DELETE FUNCTIONS & TRIGGERS */\n\n"
 
-        for table in self.insert_tables:
-            delete_table = self.delete_tables[table]
-            transducer += delete_table.generate_function() + "\n"
-            transducer += delete_table.generate_trigger() + "\n\n"
-            join_table = self.join_tables[table]
-            transducer += join_table.generate_delete_function() + "\n"
-            transducer += join_table.generate_delete_trigger() + "\n\n"
+        #for table in self.insert_tables:
+        #    delete_table = self.delete_tables[table]
+        #    transducer += delete_table.generate_function() + "\n"
+        #    transducer += delete_table.generate_trigger() + "\n\n"
+        #    join_table = self.join_tables[table]
+        #    transducer += join_table.generate_delete_function() + "\n"
+        #    transducer += join_table.generate_delete_trigger() + "\n\n"
 
         # STEP 10: Write complex source functions
 
