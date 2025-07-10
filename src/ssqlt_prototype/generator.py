@@ -130,9 +130,14 @@ CREATE SCHEMA transducer;
         transducer += "/* S->T INSERTS */\n"
         transducer += self.context.generate_target_insert()
 
+        for table in self.context.target.tables.keys():
+            transducer += self.context.generate_target_insert_trigger(tablename=table + "_INSERT_JOIN") + "\n"
 
         transducer += "/* T->S INSERTS */\n"
         transducer += self.context.generate_source_insert()
+
+        for table in self.context.source.tables.keys():
+            transducer += self.context.generate_source_insert_trigger(tablename=table + "_INSERT_JOIN") + "\n"
 
         return transducer
 

@@ -31,6 +31,22 @@ class Context:
         context_dirs = ContextDir.from_dir(file_dir)
         return cls(ContextFilePaths(context_dirs))
 
+    def generate_target_insert_trigger(self, tablename: str) -> str:
+        return f"""
+CREATE TRIGGER target_insert_{tablename}_trigger
+AFTER INSERT ON {self.target.schema}.{tablename}
+FOR EACH ROW
+EXECUTE FUNCTION {self.target.schema}.target_insert_fn();
+"""
+        
+    def generate_source_insert_trigger(self, tablename: str) -> str:
+        return f"""
+CREATE TRIGGER source_insert_{tablename}_trigger
+AFTER INSERT ON {self.source.schema}.{tablename}
+FOR EACH ROW
+EXECUTE FUNCTION {self.source.schema}.source_insert_fn();
+"""
+
     def generate_target_insert(self):
         result = ""
 
