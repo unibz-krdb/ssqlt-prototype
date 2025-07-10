@@ -26,9 +26,11 @@ class InsertTable:
         return sql
 
     def generate_function(self) -> str:
-        sql = f"""CREATE OR REPLACE FUNCTION {self.source.schema}.{self.table}_fn()
+        function_name = f"{self.source.schema}.{self.table}_fn"
+        sql = f"""CREATE OR REPLACE FUNCTION {function_name}()
    RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
    BEGIN
+   RAISE NOTICE 'Triggered function {function_name} called';
    IF EXISTS (SELECT * FROM {self.source.schema}._loop) THEN
       DELETE FROM {self.source.schema}._loop;
       DELETE FROM {self.source.schema}.{self.table};
