@@ -49,7 +49,9 @@ class Generator:
         return cls(context)
 
     def generate(self) -> str:
-        transducer = ""
+        transducer = """DROP SCHEMA IF EXISTS transducer CASCADE;
+CREATE SCHEMA transducer;
+"""
 
         ##########
         # SOURCE #
