@@ -1,8 +1,0 @@
-ssn,VARCHAR(100)
-name,VARCHAR(100)
-phone,VARCHAR(100)
-email,VARCHAR(100)
-dep_name,VARCHAR(100)
-dep_address,VARCHAR(100)
-city,VARCHAR(100)
-country,VARCHAR(100)

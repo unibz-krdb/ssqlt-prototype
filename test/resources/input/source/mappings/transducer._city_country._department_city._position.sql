@@ -1,3 +1,0 @@
-SELECT dep_address, city, country
-FROM _CITY_COUNTRY
-NATURAL JOIN _DEPARTMENT_CITY

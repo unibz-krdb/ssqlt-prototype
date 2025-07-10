@@ -1,4 +1,0 @@
-CREATE TABLE transducer._CITY_COUNTRY AS
-SELECT DISTINCT city, country FROM transducer._POSITION;
-ALTER TABLE transducer._CITY_COUNTRY ADD PRIMARY KEY (city);
-

@@ -1,1 +1,0 @@
-SELECT ssn, email FROM ${universal_tablename}

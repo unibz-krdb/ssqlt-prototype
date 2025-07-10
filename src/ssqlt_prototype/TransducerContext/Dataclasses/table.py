@@ -1,7 +1,10 @@
 from dataclasses import dataclass
+from typing import Literal, LiteralString
 from mo_sql_parsing import parse
+from string import Template
 
-@dataclass
+
+@dataclass(eq=True, frozen=True)
 class Attr:
     name: str
     _type: str
@@ -14,7 +17,10 @@ class Attr:
         if col["type"][attr_type] != {}:
             attr_type = attr_type + "(" + str(col["type"][attr_type]) + ")"
         attr_nullable = col.get("nullable", True)
-        return cls(name=attr_name.lower(), _type=attr_type.upper() , nullable=attr_nullable)
+        return cls(
+            name=attr_name.lower(), _type=attr_type.upper(), nullable=attr_nullable
+        )
+
 
 @dataclass
 class PK:
@@ -30,7 +36,8 @@ class PK:
             raise ValueError("Primary key columns must be a list or a string")
         return cls(columns=columns)
 
-@dataclass 
+
+@dataclass
 class FK:
     columns: list[str]
     ref_tablename: str
@@ -42,12 +49,12 @@ class FK:
 
         cols = fk["columns"]
         if isinstance(cols, list):
-            columns = [col.lower() for col in cols] 
+            columns = [col.lower() for col in cols]
         elif isinstance(cols, str):
             columns = [cols.lower()]
-        else: 
+        else:
             raise ValueError("Foreign key columns must be a list or a string")
-        
+
         references = fk["references"]
         (ref_tableschema, ref_tablename) = references["table"].lower().split(".")
 
@@ -58,13 +65,14 @@ class FK:
             ref_columns = [ref_cols.lower()]
         else:
             raise ValueError("Referenced columns must be a list or a string")
-        
+
         return cls(
             columns=columns,
             ref_tablename=ref_tablename,
             ref_tableschema=ref_tableschema,
-            ref_columns=ref_columns
+            ref_columns=ref_columns,
         )
+
 
 @dataclass
 class Table:
@@ -73,30 +81,58 @@ class Table:
     attributes: list[Attr]
     pkey: list[PK]
     fkey: list[FK]
+    mapping: Template
+
+    def create_stmt(self) -> str:
+        attrs = ",\n".join(f"\t{attr.name} {attr._type}" for attr in self.attributes)
+
+        sql = f"CREATE TABLE {self.schema}.{self.name} ("
+        sql += f"\n{attrs}"
+
+        if len(self.pkey) > 0:
+            pkeys = ", ".join(f"{col}" for pk in self.pkey for col in pk.columns)
+            sql += f",\n\tPRIMARY KEY ({pkeys})" if pkeys else ""
+
+        if len(self.fkey) > 0:
+            fkeys = ", ".join(
+                f"FOREIGN KEY ({', '.join(fk.columns)}) REFERENCES {fk.ref_tableschema}.{fk.ref_tablename} ({', '.join(fk.ref_columns)})"
+                for fk in self.fkey
+            )
+            sql += f",\n\t{fkeys}" if fkeys else ""
+
+        sql += "\n);"
+
+        return sql.strip()
 
     @classmethod
-    def from_create_path(cls, path: str):
-        with open(path, "r") as f:
-            sql = f.read().strip()
-        return cls.from_create_stmt(sql)
+    def from_create_path(cls, create_path: str, mapping_path: str):
+        with open(create_path, "r") as f:
+            create_sql = f.read().strip()
+        with open(mapping_path, "r") as f:
+            mapping_sql = f.read().strip()
+        return cls.from_create_stmt(create_sql, mapping_sql)
 
     @classmethod
-    def from_create_stmt(cls, sql: str) -> "Table":
+    def from_create_stmt(cls, sql: str, mapping_sql: str) -> "Table":
 
-        parsed = parse(sql)
+        parsed: dict = parse(sql)
         if "create table" not in parsed:
             raise ValueError("Invalid CREATE TABLE statement")
 
         statement = parsed["create table"]
 
-        try: 
+        try:
             (schema, tablename) = statement["name"].lower().split(".")
         except ValueError:
-            raise ValueError("CREATE TABLE statement must include schema and table name")
+            raise ValueError(
+                "CREATE TABLE statement must include schema and table name"
+            )
 
         attrs = list(map(Attr.from_dict, statement["columns"]))
 
         constraints = statement.get("constraint", [])
+        if isinstance(constraints, dict):
+            constraints = [constraints]
         pkeys = []
         fkeys = []
         for constraint in constraints:
@@ -104,7 +140,7 @@ class Table:
                 pkeys.append(PK.from_dict(constraint["primary_key"]))
             elif "foreign_key" in constraint:
                 fkeys.append(FK.from_dict(constraint["foreign_key"]))
-            else: 
+            else:
                 raise ValueError("Unknown constraint type in CREATE TABLE statement")
 
         return cls(
@@ -112,43 +148,37 @@ class Table:
             name=tablename,
             attributes=list(attrs),
             pkey=pkeys,
-            fkey=fkeys
+            fkey=fkeys,
+            mapping=Template(mapping_sql),
+        )
+
+    def mapping_sql(
+        self,
+        select_preamble: (
+            Literal["SELECT"] | Literal["SELECT DISTINCT"] | Literal[""]
+        ) = "",
+        custom_attributes: list[Attr] | None = None,
+        primary_suffix: str = "",
+        secondary_suffix: str = "",
+    ) -> str:
+        """
+        Returns the SQL for the mapping of this table.
+        """
+        if custom_attributes is None:
+            custom_attributes = self.attributes
+
+        attr_str = ", ".join(
+            f"{attr.name}" for attr in custom_attributes
+        )
+
+        return self.mapping.substitute(
+            select_preamble=select_preamble, attributes=attr_str, primary_suffix=primary_suffix, secondary_suffix=secondary_suffix
         )
 
     def from_full_join(self, tablename: str, schema: str | None = None):
         if schema is not None:
             from_tablename = schema + "."
+        else:
+            from_tablename = ""
         from_tablename += tablename
-        return f"""
-SELECT {', '.join(attr.name for attr in self.attributes)} FROM {from_tablename}
-"""
-
-@dataclass
-class MappedTable(Table):
-
-    mapping: str
-
-    @classmethod
-    def from_create_path(cls, create_path: str, mapping_path: str) -> "MappedTable":
-        with open(create_path, "r") as f:
-            create_sql = f.read().strip()
-        with open(mapping_path, "r") as f:
-            mapping_sql = f.read().strip()
-        return cls.from_create_stmt(create_sql=create_sql, mapping_sql=mapping_sql)
-
-    @classmethod
-    def from_create_stmt(cls, create_sql: str, mapping_sql: str) -> "MappedTable":
-
-        tbl = Table.from_create_stmt(create_sql)
-
-        return cls(
-            schema=tbl.schema,
-            name=tbl.name,
-            attributes=tbl.attributes,
-            pkey=tbl.pkey,
-            fkey=tbl.fkey,
-            mapping_sql=mapping_sql
-        )
-
-
-
+        return f"SELECT {', '.join(attr.name for attr in self.attributes)} FROM {from_tablename}"

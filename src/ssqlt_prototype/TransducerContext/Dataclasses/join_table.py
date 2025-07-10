@@ -1,26 +1,25 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from .db_context import DbContext
 from .constraint import Constraint
-from .create_table import CreateTable
-from .universal import Universal
-from .enums import SourceTarget
+from .table import Table
 
 
 @dataclass
 class JoinTable:
-    create_table: CreateTable
-    universal: Universal
+    create_table: Table
+    context: DbContext
 
-    def __init__(self, create_table: CreateTable, universal: Universal) -> None:
+    def __init__(self, create_table: Table, context: DbContext) -> None:
         self.create_table = create_table
-        self.universal = universal
-        self.insert_tablename = create_table.table + "_INSERT_JOIN"
-        self.delete_tablename = create_table.table + "_DELETE_JOIN"
+        self.context = context
+        self.insert_tablename = create_table.name + "_INSERT_JOIN"
+        self.delete_tablename = create_table.name + "_DELETE_JOIN"
 
     def _create_sql(self, tablename: str) -> str:
         sql = f"CREATE TABLE {self.create_table.schema}.{tablename} AS\n"
-        sql += f"SELECT * FROM {self.create_table.schema}.{self.create_table.table}\n"
+        sql += f"SELECT * FROM {self.create_table.schema}.{self.create_table.name}\n"
         sql += "WHERE 1<>1;"
         return sql
 
@@ -43,15 +42,7 @@ class JoinTable:
     def _generate_function(
         self, tablename: str, insert_delete: Constraint.InsertDelete
     ) -> str:
-        mappings = self.universal.mappings[self.create_table.table]
-
-        ordering = self.universal.source_ordering + self.universal.target_ordering
-        ordering = list(
-            filter(
-                lambda x: x in mappings.partner_table_names,
-                ordering,
-            )
-        )
+        ordering = self.context.ordering
 
         if insert_delete == Constraint.InsertDelete.INSERT:
             suffix = "_INSERT"
@@ -66,33 +57,30 @@ BEGIN
 """
 
         # Create temporary table
-        sql += self.universal.create_sql("temp_table", temp=True)
+        sql += self.context.create_temp_table("temp_table")
 
-        to_sql = self.universal.mappings[self.create_table.table].to_sql(
+        to_sql = self.create_table.mapping_sql(
+            select_preamble="SELECT",
             primary_suffix=suffix
         )
         sql += f"\nINSERT INTO temp_table ({to_sql});\n"
 
         # Inserts
 
-        for table in ordering[:-1]:
-            partner_sql = self.universal.mappings[table].from_sql_template.substitute(
-                {"universal_tablename": "temp_table"}
-            )
-            sql += f"\nINSERT INTO {self.create_table.schema}.{table}{suffix}_JOIN ({partner_sql});"
+        for i, tablename in enumerate(ordering):
+            table = self.context.tables[tablename]
+            partner_sql = table.from_full_join(tablename="temp_table")
+            sql += f"\nINSERT INTO {self.create_table.schema}.{table.name}{suffix}_JOIN ({partner_sql});"
 
-        sql += "\nINSERT INTO transducer._loop VALUES (1);"
-
-        partner_sql = self.universal.mappings[
-            ordering[-1]
-        ].from_sql_template.substitute({"universal_tablename": "temp_table"})
-        sql += f"\nINSERT INTO {self.create_table.schema}.{ordering[-1]}{suffix}_JOIN ({partner_sql});"
+            if i == len(ordering) - 2:
+                sql += f"\nINSERT INTO {self.create_table.schema}._LOOP VALUES (1);"
 
         # Conclude
 
         sql += """\n
 DELETE FROM temp_table;
 DROP TABLE temp_table;
+
 RETURN NEW;
 END;  $$;
         """
@@ -102,7 +90,7 @@ END;  $$;
         self, tablename: str, _type: Literal["INSERT"] | Literal["DELETE"]
     ) -> str:
         sql = f"""CREATE TRIGGER {tablename}_trigger
-AFTER INSERT ON {self.create_table.schema}.{self.create_table.table}_{_type}
+AFTER INSERT ON {self.create_table.schema}.{self.create_table.name}_{_type}
 FOR EACH ROW
 EXECUTE FUNCTION {self.create_table.schema}.{tablename}_fn();
         """

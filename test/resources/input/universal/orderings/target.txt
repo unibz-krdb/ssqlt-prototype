@@ -1,6 +1,0 @@
-_city_country
-_department_city
-_department
-_person_email
-_person_phone
-_person

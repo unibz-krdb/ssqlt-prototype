@@ -13,35 +13,18 @@ class Generator:
         self.context = context
         self.insert_tables = {}
         self.delete_tables = {}
+        self.join_tables = {}
 
         for tablename, table in context.source.tables.items():
             self.schema = table.schema
-
-            mapping = context.source.mappings[tablename]
-            self.insert_tables[tablename] = InsertTable(
-                source=table,
-                mapping=mapping,
-                universal_mapping=context.universal.mappings[tablename],
-            )
+            self.insert_tables[tablename] = InsertTable(source=table)
             self.delete_tables[tablename] = DeleteTable(source=table)
+            self.join_tables[tablename] = JoinTable(create_table=table, context=context.source)
 
         for tablename, table in context.target.tables.items():
-            mapping = context.target.mappings[tablename]
-            self.insert_tables[tablename] = InsertTable(
-                source=table,
-                mapping=mapping,
-                universal_mapping=context.universal.mappings[tablename],
-            )
+            self.insert_tables[tablename] = InsertTable(source=table)
             self.delete_tables[tablename] = DeleteTable(source=table)
-
-        self.join_tables = {}
-        for create_table in list(self.context.source.tables.values()) + list(
-            self.context.target.tables.values()
-        ):
-            self.join_tables[create_table.table] = JoinTable(
-                create_table=create_table,
-                universal=self.context.universal,
-            )
+            self.join_tables[tablename] = JoinTable(create_table=table, context=context.target)
 
     @classmethod
     def from_dir(cls, path: str) -> Self:
@@ -52,7 +35,6 @@ class Generator:
         transducer = """DROP SCHEMA IF EXISTS transducer CASCADE;
 CREATE SCHEMA transducer;
 """
-
         ##########
         # SOURCE #
         ##########
@@ -61,9 +43,9 @@ CREATE SCHEMA transducer;
 
         transducer += "/* SOURCE TABLES */\n\n"
 
-        for source_tablename in self.context.source.dep_orderings:
+        for source_tablename in self.context.source.ordering:
             table = self.context.source.tables[source_tablename]
-            transducer += table.sql + "\n\n"
+            transducer += table.create_stmt() + "\n\n"
 
         # STEP 2: Write source constraints
 
@@ -74,13 +56,14 @@ CREATE SCHEMA transducer;
                 transducer += constraint.generate_function() + "\n\n"
                 transducer += constraint.generate_trigger() + "\n\n\n"
 
+
         # STEP 3: Write target table creates
 
         transducer += "/* TARGET TABLES */\n\n"
 
-        for target_tablename in self.context.target.dep_orderings:
+        for target_tablename in self.context.target.ordering:
             table = self.context.target.tables[target_tablename]
-            transducer += table.sql + "\n\n"
+            transducer += table.create_stmt() + "\n\n"
 
         # STEP 4: Write target table constraints
 
@@ -99,11 +82,12 @@ CREATE SCHEMA transducer;
             transducer += self.insert_tables[table].create_sql() + "\n\n"
             transducer += self.join_tables[table].create_insert_sql() + "\n\n"
 
+
         # STEP 6: Write delete table
 
-        #transducer += "/* DELETE TABLES */\n\n"
+        # transducer += "/* DELETE TABLES */\n\n"
 
-        #for table in self.delete_tables:
+        # for table in self.delete_tables:
         #    transducer += self.delete_tables[table].create_sql() + "\n\n"
         #    transducer += self.join_tables[table].create_delete_sql() + "\n\n"
 
@@ -129,9 +113,9 @@ CREATE SCHEMA transducer;
 
         # STEP 9: Write delete functions
 
-        #transducer += "/* DELETE FUNCTIONS & TRIGGERS */\n\n"
+        # transducer += "/* DELETE FUNCTIONS & TRIGGERS */\n\n"
 
-        #for table in self.insert_tables:
+        # for table in self.insert_tables:
         #    delete_table = self.delete_tables[table]
         #    transducer += delete_table.generate_function() + "\n"
         #    transducer += delete_table.generate_trigger() + "\n\n"
@@ -145,6 +129,7 @@ CREATE SCHEMA transducer;
 
         transducer += "/* S->T INSERTS */\n"
         transducer += self.context.generate_target_insert()
+
 
         transducer += "/* T->S INSERTS */\n"
         transducer += self.context.generate_source_insert()

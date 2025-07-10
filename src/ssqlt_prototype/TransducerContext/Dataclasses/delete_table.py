@@ -1,21 +1,21 @@
 from dataclasses import dataclass
 
-from .create_table import CreateTable
+from .table import Table
 
 
 @dataclass
 class DeleteTable:
-    source: CreateTable
+    source: Table
     schema: str
     table: str
 
-    def __init__(self, source: CreateTable) -> None:
+    def __init__(self, source: Table) -> None:
         self.source = source
-        self.table = source.table + "_DELETE"
+        self.table = source.name + "_DELETE"
 
     def create_sql(self) -> str:
         sql = f"CREATE TABLE {self.source.schema}.{self.table} AS\n"
-        sql += f"SELECT * FROM {self.source.schema}.{self.source.table}\n"
+        sql += f"SELECT * FROM {self.source.schema}.{self.source.name}\n"
         sql += "WHERE 1<>1;"
         return sql
 
@@ -40,7 +40,7 @@ END;  $$;
 
     def generate_trigger(self) -> str:
         sql = f"""CREATE TRIGGER {self.source.schema}_{self.table}_trigger
-AFTER DELETE ON {self.source.schema}.{self.source.table}
+AFTER DELETE ON {self.source.schema}.{self.source.name}
 FOR EACH ROW
 EXECUTE FUNCTION {self.source.schema}.{self.table}_fn();
         """
