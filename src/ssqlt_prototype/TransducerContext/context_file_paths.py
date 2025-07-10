@@ -5,6 +5,7 @@ from .context_dir import ContextDir
 
 @dataclass
 class ContextFilePaths:
+    source_attributes: list[str]
     source_creates: list[str]
     source_constraints: list[str]
     source_to_target_mappings: list[str]
@@ -12,6 +13,7 @@ class ContextFilePaths:
     source_ordering: str
     source_full_join: str
 
+    target_attributes: list[str]
     target_creates: list[str]
     target_constraints: list[str]
     target_to_source_mappings: list[str]
@@ -26,6 +28,17 @@ class ContextFilePaths:
     universal_target_ordering: str
 
     def __init__(self, context_paths: ContextDir) -> None:
+
+        # Source Attributes
+        files = os.listdir(context_paths.source_attributes_dir)
+        if len(files) == 0:
+            raise FileNotFoundError(
+                f"No attribute files found in {context_paths.source_attributes_dir}"
+            )
+        self.source_attributes = list(
+            map(lambda f: os.path.join(context_paths.source_attributes_dir, f), files)
+        )
+
         # Get source_create file
         files = os.listdir(context_paths.source_create_dir)
         if len(files) == 0:
@@ -34,6 +47,16 @@ class ContextFilePaths:
             )
         self.source_creates = list(
             map(lambda f: os.path.join(context_paths.source_create_dir, f), files)
+        )
+
+        # Target Attributes
+        files = os.listdir(context_paths.target_attributes_dir)
+        if len(files) == 0:
+            raise FileNotFoundError(
+                f"No attribute files found in {context_paths.target_attributes_dir}"
+            )
+        self.target_attributes = list(
+            map(lambda f: os.path.join(context_paths.target_attributes_dir, f), files)
         )
 
         # Get target_creates files

@@ -6,3 +6,4 @@ from .mapping import Mapping
 from .universal import Universal
 from .join_table import JoinTable
 from .enums import SourceTarget
+from .attribute import Attribute

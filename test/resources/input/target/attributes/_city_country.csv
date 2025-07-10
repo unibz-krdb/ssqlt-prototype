@@ -1,0 +1,2 @@
+city,VARCHAR(100)
+country,VARCHAR(100)

@@ -1,0 +1,3 @@
+ssn,VARCHAR(100)
+name,VARCHAR(100)
+dep_name,VARCHAR(100)

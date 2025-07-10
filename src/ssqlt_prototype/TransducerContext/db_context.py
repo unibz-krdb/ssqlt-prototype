@@ -15,6 +15,7 @@ class DbContext:
     @classmethod
     def from_files(
         cls,
+        attribute_paths: list[str],
         create_paths: list[str],
         constraint_paths: list[str],
         mapping_paths: list[str],
@@ -24,8 +25,12 @@ class DbContext:
 
         tables = {}
         for file_path in create_paths:
-            create_table = CreateTable.from_file(file_path)
-            tables[create_table.table] = create_table
+            filename = file_path.split("/")[-1].split(".")[1]
+            for attribute_path in attribute_paths:
+                if filename.startswith(attribute_path.split("/")[-1].split(".")[0]):
+                    create_table = CreateTable.from_file(file_path, attribute_path)
+                    tables[create_table.table] = create_table
+                    break
 
         constraints = {}
         for file_path in constraint_paths:

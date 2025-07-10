@@ -1,0 +1,2 @@
+dep_address,VARCHAR(100)
+city,VARCHAR(100)

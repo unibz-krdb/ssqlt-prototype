@@ -27,6 +27,9 @@ class InsertTable:
 
     def generate_function(self) -> str:
         function_name = f"{self.source.schema}.{self.table}_fn"
+        attributestr = ", ".join(
+            f"new.{attr.name}" for attr in self.source.attributes
+        )
         sql = f"""CREATE OR REPLACE FUNCTION {function_name}()
    RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
    BEGIN
@@ -37,8 +40,7 @@ class InsertTable:
       RETURN NULL;
    ELSE
       INSERT INTO {self.source.schema}._loop VALUES (-1);
-      INSERT INTO {self.source.schema}.{self.table} 
-      {self.universal_mapping.from_sql(universal_tablename="new")};
+      INSERT INTO {self.source.schema}.{self.table} VALUES({attributestr});
       RETURN NEW;
    END IF;
 END;  $$;
