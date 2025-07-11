@@ -77,9 +77,10 @@ ELSE
 
         result += self.source.create_temp_table(temp_tablename)
 
-        full_mapping_tablename = target_orderings[-1]
+        full_mapping_tablename = target_orderings[0]
         table = self.target.tables[full_mapping_tablename]
         full_mapping = table.mapping_sql(
+            custom_attributes=self.target.all_attributes(),
             primary_suffix="_INSERT_JOIN",
             secondary_suffix="_INSERT_JOIN",
             select_preamble="SELECT DISTINCT",
