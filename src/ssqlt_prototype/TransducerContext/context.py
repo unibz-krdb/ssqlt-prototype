@@ -157,7 +157,7 @@ ELSE
 
         def get_insert(target: str):
             table = self.target.tables[target]
-            mapping_str = "(" + full_join_table.mapping_sql(select_preamble="SELECT DISTINCT", custom_attributes=table.attributes, primary_suffix="_INSERT_JOIN", secondary_suffix="_INSERT_JOIN") + ")"
+            mapping_str = "(" + full_join_table.mapping_sql(select_preamble="SELECT DISTINCT", custom_attributes=table.attributes, primary_suffix="_INSERT_JOIN", secondary_suffix="_INSERT_JOIN", where=True) + ")"
 
             result = f"\n\tINSERT INTO {schema}.{target} "
             result += "" + mapping_str + ""
