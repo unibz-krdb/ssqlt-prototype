@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal, LiteralString
+from typing import Literal
 from mo_sql_parsing import parse
 from jinja2 import Template
 

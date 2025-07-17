@@ -2,7 +2,6 @@ from typing import Self
 
 from .TransducerContext import (
     Context,
-    DeleteTable,
     InsertTable,
     JoinTable,
     SourceTarget,
@@ -13,7 +12,6 @@ import os
 class Generator:
     context: Context
     insert_tables: dict[str, InsertTable]
-    delete_tables: dict[str, DeleteTable]
     join_tables: dict[str, JoinTable]
 
     def __init__(self, context: Context) -> None:
@@ -25,14 +23,12 @@ class Generator:
         for tablename, table in context.source.tables.items():
             self.schema = table.schema
             self.insert_tables[tablename] = InsertTable(source=table)
-            self.delete_tables[tablename] = DeleteTable(source=table)
             self.join_tables[tablename] = JoinTable(
                 create_table=table, context=context.source
             )
 
         for tablename, table in context.target.tables.items():
             self.insert_tables[tablename] = InsertTable(source=table)
-            self.delete_tables[tablename] = DeleteTable(source=table)
             self.join_tables[tablename] = JoinTable(
                 create_table=table, context=context.target
             )

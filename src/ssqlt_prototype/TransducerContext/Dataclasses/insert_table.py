@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 
-from .universal_mapping import UniversalMapping
 from .table import Table
 
 
@@ -9,7 +8,6 @@ class InsertTable:
     source: Table
     schema: str
     table: str
-    universal_mapping: UniversalMapping
 
     def __init__(self, source: Table) -> None:
         self.source = source
