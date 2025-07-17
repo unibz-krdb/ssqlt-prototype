@@ -5,5 +5,6 @@ from .Dataclasses import (
     Mapping as Mapping,
     InsertTable as InsertTable,
     JoinTable as JoinTable,
+    SourceTarget as SourceTarget,
 )
 from .context import Context as Context

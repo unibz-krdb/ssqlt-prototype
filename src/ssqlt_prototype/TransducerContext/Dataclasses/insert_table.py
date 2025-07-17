@@ -13,6 +13,7 @@ class InsertTable:
 
     def __init__(self, source: Table) -> None:
         self.source = source
+        self.schema = source.schema
         self.table = source.name + "_INSERT"
 
     def create_sql(self) -> str:
@@ -42,12 +43,12 @@ class InsertTable:
 END;  $$;
 """
 
-        return sql
+        return sql.strip()
 
     def generate_trigger(self) -> str:
         sql = f"""CREATE TRIGGER {self.source.schema}_{self.table}_trigger
 AFTER INSERT ON {self.source.schema}.{self.source.name}
 FOR EACH ROW
 EXECUTE FUNCTION {self.source.schema}.{self.table}_fn();
-        """
-        return sql
+"""
+        return sql.strip()

@@ -37,7 +37,7 @@ CREATE TRIGGER target_insert_{tablename}_trigger
 AFTER INSERT ON {self.target.schema}.{tablename}
 FOR EACH ROW
 EXECUTE FUNCTION {self.target.schema}.target_insert_fn();
-"""
+""".strip()
         
     def generate_source_insert_trigger(self, tablename: str) -> str:
         return f"""
@@ -45,7 +45,7 @@ CREATE TRIGGER source_insert_{tablename}_trigger
 AFTER INSERT ON {self.source.schema}.{tablename}
 FOR EACH ROW
 EXECUTE FUNCTION {self.source.schema}.source_insert_fn();
-"""
+""".strip()
 
     def generate_target_insert(self):
         result = ""
@@ -133,7 +133,7 @@ END IF;
 END;    $$;
 """
 
-        return result
+        return result.strip()
 
     def generate_source_insert(self):
 
@@ -179,7 +179,7 @@ END IF;
 END;  $$;
 """
 
-        return result
+        return result.strip()
 
     def generate_target_delete(self):
         return NotImplementedError("Target delete generation is not implemented yet.")
