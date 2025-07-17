@@ -174,9 +174,10 @@ ELSE
         for tablename in self.source.ordering[::-1]:
             result += f"\n\tDELETE FROM {schema}.{tablename}_INSERT_JOIN;"
 
-        result += f"\n\tDELETE FROM {schema}._loop NEW;"
+        result += f"\n\tDELETE FROM {schema}._loop;"
 
         result += """
+RETURN NEW;
 END IF;
 END;  $$;
 """
