@@ -54,6 +54,7 @@ class JoinTable:
         sql = f"""CREATE OR REPLACE FUNCTION {self.create_table.schema}.{tablename}_FN()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+RAISE NOTICE 'Function {self.create_table.schema}.{tablename}_FN called';
 """
 
         # Create temporary table

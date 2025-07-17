@@ -64,6 +64,8 @@ DECLARE
 v_loop INT;
 BEGIN
 
+RAISE NOTICE 'Function {schema}.target_insert_fn called';
+
 SELECT count(*) INTO v_loop from transducer._loop;
 
 
@@ -143,7 +145,7 @@ END;    $$;
 CREATE OR REPLACE FUNCTION {schema}.source_insert_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
-RAISE NOTICE 'Something got added in a JOIN table';
+RAISE NOTICE 'Function {schema}.source_insert_fn called';
 IF NOT EXISTS (SELECT * FROM transducer._loop, (SELECT COUNT(*) as rc_value FROM transducer._loop) AS row_count
 WHERE ABS(loop_start) = row_count.rc_value) THEN
    RAISE NOTICE 'But now is not the time to generate the query';

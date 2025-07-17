@@ -30,7 +30,7 @@ class InsertTable:
         sql = f"""CREATE OR REPLACE FUNCTION {function_name}()
    RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
    BEGIN
-   RAISE NOTICE 'Triggered function {function_name} called';
+   RAISE NOTICE 'Function {function_name} called';
    IF EXISTS (SELECT * FROM {self.source.schema}._loop) THEN
       DELETE FROM {self.source.schema}._loop;
       DELETE FROM {self.source.schema}.{self.table};

@@ -1,5 +1,5 @@
-${select_preamble} ${attributes}
-FROM transducer._PERSON_PHONE${primary_suffix}
+{{ select_preamble }} {{ attributes }}
+FROM transducer._PERSON_PHONE{{ primary_suffix }}
    NATURAL LEFT OUTER JOIN transducer._PERSON
    NATURAL LEFT OUTER JOIN transducer._PERSON_EMAIL
    NATURAL LEFT OUTER JOIN transducer._DEPARTMENT

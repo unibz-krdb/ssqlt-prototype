@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Literal, LiteralString
 from mo_sql_parsing import parse
-from string import Template
+from jinja2 import Template
 
 
 @dataclass(eq=True, frozen=True)
@@ -160,6 +160,7 @@ class Table:
         custom_attributes: list[Attr] | None = None,
         primary_suffix: str = "",
         secondary_suffix: str = "",
+        not_null_attributes: list[Attr] = []
     ) -> str:
         """
         Returns the SQL for the mapping of this table.
@@ -171,7 +172,7 @@ class Table:
             f"{attr.name}" for attr in custom_attributes
         )
 
-        return self.mapping.substitute(
+        return self.mapping.render(
             select_preamble=select_preamble, attributes=attr_str, primary_suffix=primary_suffix, secondary_suffix=secondary_suffix
         )
 

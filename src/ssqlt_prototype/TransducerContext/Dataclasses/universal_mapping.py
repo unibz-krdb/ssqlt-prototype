@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import os
-from string import Template
+from jinja2 import Template
 from typing import Self
 
 
@@ -13,7 +13,7 @@ class UniversalMapping:
 
     def from_sql(self, universal_tablename) -> str:
         """Generate SQL for the FROM mapping."""
-        return self.from_sql_template.substitute(
+        return self.from_sql_template.render(
             universal_tablename=universal_tablename
         )
 
@@ -29,7 +29,7 @@ class UniversalMapping:
             select_preamble = "SELECT DISTINCT"
         else:
             select_preamble = "SELECT"
-        return self.to_sql_template.substitute(
+        return self.to_sql_template.render(
             universal_tablename=universal_tablename,
             primary_suffix=primary_suffix,
             secondary_suffix=secondary_suffix,
