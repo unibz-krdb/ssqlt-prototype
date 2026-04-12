@@ -203,6 +203,15 @@ def test_target_insert_mapping(example_1_gen):
     assert "_person_source" in result
 
 
+def test_target_insert_mapping_uses_loop_constant(example_1_gen):
+    """Regression: TARGET_INSERT_FN must use TARGET_LOOP_VALUE, not a raw literal."""
+    from sstc.generator import TARGET_LOOP_VALUE
+
+    result = example_1_gen._mapping()
+    target_fn = _extract_section(result, "TARGET_INSERT_FN", "SOURCE_DELETE_FN")
+    assert f"VALUES ({TARGET_LOOP_VALUE})" in target_fn
+
+
 def test_source_delete_mapping(example_1_gen):
     result = example_1_gen._mapping()
 

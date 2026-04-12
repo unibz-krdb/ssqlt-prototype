@@ -386,7 +386,7 @@ class Generator:
                 use_temp_join=True,
                 universal_columns=universal_columns,
                 universal_col_names=universal_col_names,
-                loop_value=-1,
+                loop_value=TARGET_LOOP_VALUE,
                 prune_rules=prune_rules,
             )
         )
