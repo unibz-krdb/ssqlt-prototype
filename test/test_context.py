@@ -73,6 +73,34 @@ def test_example2_context_nullability(example_2_ctx):
     assert set(nullable) == {"empid", "hdate", "dept", "manager"}
 
 
+def test_mixed_case_schema_names_normalized(tmp_path):
+    """Attribute names from JSON should be lowercased to match RAPT2 output."""
+    import json
+    from sstc.context import Context, Direction
+
+    # Write a minimal universal schema with mixed case
+    schema_path = tmp_path / "universal.json"
+    schema_path.write_text(json.dumps([
+        {"name": "SSN", "data_type": "VARCHAR(100)", "is_nullable": False},
+        {"name": "Name", "data_type": "VARCHAR(100)", "is_nullable": False},
+    ]))
+
+    # Write a minimal RA file (Dependency Grammar uses := and ; terminators)
+    ra_path = tmp_path / "source.txt"
+    ra_path.write_text(
+        "T1 := \\project_{SSN, Name} Universal;\n"
+        "pk_{SSN} T1;\n"
+        "UniversalMapping := \\project_{SSN, Name} T1;\n"
+    )
+
+    ctx = Context.from_file(str(schema_path), str(ra_path), Direction.SOURCE)
+    # RAPT2 lowercases: table attributes should be ['ssn', 'name']
+    assert ctx.tables[0].attributes == ["ssn", "name"]
+    # Schema dict names should also be lowercase
+    for attr in ctx.universal_schema:
+        assert attr.name == attr.name.lower(), f"Expected lowercase, got {attr.name}"
+
+
 def test_universal_mapping_constant_exists():
     """The reserved mapping name should be a module-level constant."""
     from sstc.context import UNIVERSAL_MAPPING_NAME

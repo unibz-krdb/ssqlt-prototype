@@ -109,6 +109,7 @@ class Context:
         with open(universal_path, "r") as file:
             universal_schema = json.load(file)
             for json_attr in universal_schema:
+                json_attr["name"] = json_attr["name"].lower()
                 universal_attributes.append(AttributeSchema.from_dict(json_attr))
                 schema["Universal"].append(json_attr["name"])
 
