@@ -5,6 +5,8 @@ import pytest
 from sstc import TransducerContext
 from sstc.generator import Generator
 
+_TEST_DIR = os.path.dirname(__file__)
+
 
 def pytest_addoption(parser):
     parser.addoption(
@@ -21,7 +23,7 @@ def update_golden(request):
 
 
 def _example_dir(name: str) -> str:
-    path = os.path.join("test", "inputs", name)
+    path = os.path.join(_TEST_DIR, "inputs", name)
     if not os.path.exists(path):
         raise FileNotFoundError(f"Path {path} does not exist.")
     return path
@@ -96,10 +98,11 @@ def pg_conn(pg_container):
 
 @pytest.fixture(scope="session")
 def example1_sql():
+    d = _example_dir("example1")
     ctx = TransducerContext.from_files(
-        universal_path=os.path.join("test", "inputs", "example1", "universal.json"),
-        source_path=os.path.join("test", "inputs", "example1", "source.txt"),
-        target_path=os.path.join("test", "inputs", "example1", "target.txt"),
+        universal_path=os.path.join(d, "universal.json"),
+        source_path=os.path.join(d, "source.txt"),
+        target_path=os.path.join(d, "target.txt"),
     )
     return Generator(ctx).compile()
 

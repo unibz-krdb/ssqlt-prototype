@@ -5,11 +5,12 @@ import pytest
 from sstc import TransducerContext
 from sstc.generator import Generator
 
-GOLDEN_DIR = os.path.join(os.path.dirname(__file__), "golden")
+_TEST_DIR = os.path.dirname(__file__)
+GOLDEN_DIR = os.path.join(_TEST_DIR, "golden")
 
 
 def _compile_example(name: str) -> str:
-    input_dir = os.path.join("test", "inputs", name)
+    input_dir = os.path.join(_TEST_DIR, "inputs", name)
     ctx = TransducerContext.from_files(
         universal_path=os.path.join(input_dir, "universal.json"),
         source_path=os.path.join(input_dir, "source.txt"),
