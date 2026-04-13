@@ -409,6 +409,7 @@ class Generator:
                 universal_col_names=universal_col_names,
                 where_not_null="",
                 use_abs=False,
+                suffix="DELETE",
             )
         )
         parts.extend(
@@ -430,6 +431,7 @@ class Generator:
                 universal_col_names=universal_col_names,
                 where_not_null=tgt_insert_where,
                 use_abs=True,
+                suffix="DELETE",
             )
         )
         parts.extend(
