@@ -101,4 +101,5 @@ def example1_sql():
 @pytest.fixture
 def transducer_db(pg_conn, example1_sql):
     pg_conn.execute(example1_sql)
-    return pg_conn
+    yield pg_conn
+    pg_conn.execute("DROP SCHEMA IF EXISTS transducer CASCADE")
