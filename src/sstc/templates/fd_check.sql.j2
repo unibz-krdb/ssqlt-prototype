@@ -10,7 +10,6 @@ BEGIN
         WHERE {{ lhs_condition }}
         AND {{ rhs_condition }}) THEN
         RAISE EXCEPTION 'FD constraint violation on {{ table_name }}: {{ lhs_attrs | join(", ") }} -> {{ rhs_attrs | join(", ") }}';
-        RETURN NULL;
     ELSE
         RETURN NEW;
     END IF;
