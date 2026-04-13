@@ -80,10 +80,14 @@ def test_mixed_case_schema_names_normalized(tmp_path):
 
     # Write a minimal universal schema with mixed case
     schema_path = tmp_path / "universal.json"
-    schema_path.write_text(json.dumps([
-        {"name": "SSN", "data_type": "VARCHAR(100)", "is_nullable": False},
-        {"name": "Name", "data_type": "VARCHAR(100)", "is_nullable": False},
-    ]))
+    schema_path.write_text(
+        json.dumps(
+            [
+                {"name": "SSN", "data_type": "VARCHAR(100)", "is_nullable": False},
+                {"name": "Name", "data_type": "VARCHAR(100)", "is_nullable": False},
+            ]
+        )
+    )
 
     # Write a minimal RA file (Dependency Grammar uses := and ; terminators)
     ra_path = tmp_path / "source.txt"
@@ -104,4 +108,5 @@ def test_mixed_case_schema_names_normalized(tmp_path):
 def test_universal_mapping_constant_exists():
     """The reserved mapping name should be a module-level constant."""
     from sstc.context import UNIVERSAL_MAPPING_NAME
+
     assert UNIVERSAL_MAPPING_NAME == "universalmapping"

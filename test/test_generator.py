@@ -60,7 +60,6 @@ def test_preamble(example_1_gen):
     assert "loop_start" in preamble
 
 
-
 def test_base_tables(example_1_gen):
     result = example_1_gen._base_tables()
 

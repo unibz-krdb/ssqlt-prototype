@@ -50,9 +50,9 @@ def test_simple_person_propagates(transducer_db):
     )
 
     # Level 0 targets populated
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._person"
-    ).fetchall() == [("S1", "Alice")]
+    assert transducer_db.execute("SELECT * FROM transducer._person").fetchall() == [
+        ("S1", "Alice")
+    ]
     assert transducer_db.execute(
         "SELECT * FROM transducer._personphone"
     ).fetchall() == [("S1", "P1")]
@@ -61,32 +61,30 @@ def test_simple_person_propagates(transducer_db):
     ).fetchall() == [("S1", "E1")]
 
     # Level 1 + 2 targets empty
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._employee"
-    ).fetchall() == []
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._employeedate"
-    ).fetchall() == []
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._ped"
-    ).fetchall() == []
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._peddept"
-    ).fetchall() == []
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._deptmanager"
-    ).fetchall() == []
+    assert transducer_db.execute("SELECT * FROM transducer._employee").fetchall() == []
+    assert (
+        transducer_db.execute("SELECT * FROM transducer._employeedate").fetchall() == []
+    )
+    assert transducer_db.execute("SELECT * FROM transducer._ped").fetchall() == []
+    assert transducer_db.execute("SELECT * FROM transducer._peddept").fetchall() == []
+    assert (
+        transducer_db.execute("SELECT * FROM transducer._deptmanager").fetchall() == []
+    )
 
     # Tracking tables cleaned up
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._person_source_insert"
-    ).fetchall() == []
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._person_source_insert_join"
-    ).fetchall() == []
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._loop"
-    ).fetchall() == []
+    assert (
+        transducer_db.execute(
+            "SELECT * FROM transducer._person_source_insert"
+        ).fetchall()
+        == []
+    )
+    assert (
+        transducer_db.execute(
+            "SELECT * FROM transducer._person_source_insert_join"
+        ).fetchall()
+        == []
+    )
+    assert transducer_db.execute("SELECT * FROM transducer._loop").fetchall() == []
 
 
 def test_employee_propagates(transducer_db):
@@ -100,9 +98,9 @@ def test_employee_propagates(transducer_db):
     )
 
     # Level 0
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._person"
-    ).fetchall() == [("S2", "Bob")]
+    assert transducer_db.execute("SELECT * FROM transducer._person").fetchall() == [
+        ("S2", "Bob")
+    ]
     assert transducer_db.execute(
         "SELECT * FROM transducer._personphone"
     ).fetchall() == [("S2", "P2")]
@@ -111,23 +109,19 @@ def test_employee_propagates(transducer_db):
     ).fetchall() == [("S2", "E2")]
 
     # Level 1
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._employee"
-    ).fetchall() == [("S2", "EMP2")]
+    assert transducer_db.execute("SELECT * FROM transducer._employee").fetchall() == [
+        ("S2", "EMP2")
+    ]
     assert transducer_db.execute(
         "SELECT * FROM transducer._employeedate"
     ).fetchall() == [("EMP2", "H2")]
 
     # Level 2 empty
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._ped"
-    ).fetchall() == []
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._peddept"
-    ).fetchall() == []
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._deptmanager"
-    ).fetchall() == []
+    assert transducer_db.execute("SELECT * FROM transducer._ped").fetchall() == []
+    assert transducer_db.execute("SELECT * FROM transducer._peddept").fetchall() == []
+    assert (
+        transducer_db.execute("SELECT * FROM transducer._deptmanager").fetchall() == []
+    )
 
 
 def test_full_employee_with_dept_propagates(transducer_db):
@@ -145,9 +139,9 @@ def test_full_employee_with_dept_propagates(transducer_db):
     )
 
     # Level 0
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._person"
-    ).fetchall() == [("S3", "Carol")]
+    assert transducer_db.execute("SELECT * FROM transducer._person").fetchall() == [
+        ("S3", "Carol")
+    ]
     assert transducer_db.execute(
         "SELECT * FROM transducer._personphone"
     ).fetchall() == [("S3", "P3")]
@@ -156,20 +150,20 @@ def test_full_employee_with_dept_propagates(transducer_db):
     ).fetchall() == [("S3", "E3")]
 
     # Level 1
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._employee"
-    ).fetchall() == [("S3", "EMP3")]
+    assert transducer_db.execute("SELECT * FROM transducer._employee").fetchall() == [
+        ("S3", "EMP3")
+    ]
     assert transducer_db.execute(
         "SELECT * FROM transducer._employeedate"
     ).fetchall() == [("EMP3", "H3")]
 
     # Level 2
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._ped"
-    ).fetchall() == [("S3", "EMP3")]
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._peddept"
-    ).fetchall() == [("EMP3", "D3")]
+    assert transducer_db.execute("SELECT * FROM transducer._ped").fetchall() == [
+        ("S3", "EMP3")
+    ]
+    assert transducer_db.execute("SELECT * FROM transducer._peddept").fetchall() == [
+        ("EMP3", "D3")
+    ]
     assert transducer_db.execute(
         "SELECT * FROM transducer._deptmanager"
     ).fetchall() == [("D3", "EMP3")]
@@ -207,12 +201,14 @@ def test_multiple_persons_propagate(transducer_db):
     assert {r[0] for r in person} == {"S10", "S20", "S30"}
 
     # _personphone / _personemail: 3 each
-    assert len(transducer_db.execute(
-        "SELECT * FROM transducer._personphone"
-    ).fetchall()) == 3
-    assert len(transducer_db.execute(
-        "SELECT * FROM transducer._personemail"
-    ).fetchall()) == 3
+    assert (
+        len(transducer_db.execute("SELECT * FROM transducer._personphone").fetchall())
+        == 3
+    )
+    assert (
+        len(transducer_db.execute("SELECT * FROM transducer._personemail").fetchall())
+        == 3
+    )
 
     # _employee: 2 (S20, S30)
     employee = transducer_db.execute(
@@ -222,25 +218,24 @@ def test_multiple_persons_propagate(transducer_db):
     assert {r[1] for r in employee} == {"EMP20", "EMP30"}
 
     # _employeedate: 2
-    assert len(transducer_db.execute(
-        "SELECT * FROM transducer._employeedate"
-    ).fetchall()) == 2
+    assert (
+        len(transducer_db.execute("SELECT * FROM transducer._employeedate").fetchall())
+        == 2
+    )
 
     # _ped / _peddept / _deptmanager: 1 each (S30 only)
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._ped"
-    ).fetchall() == [("S30", "EMP30")]
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._peddept"
-    ).fetchall() == [("EMP30", "D30")]
+    assert transducer_db.execute("SELECT * FROM transducer._ped").fetchall() == [
+        ("S30", "EMP30")
+    ]
+    assert transducer_db.execute("SELECT * FROM transducer._peddept").fetchall() == [
+        ("EMP30", "D30")
+    ]
     assert transducer_db.execute(
         "SELECT * FROM transducer._deptmanager"
     ).fetchall() == [("D30", "EMP20")]
 
     # Tracking fully cleaned
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._loop"
-    ).fetchall() == []
+    assert transducer_db.execute("SELECT * FROM transducer._loop").fetchall() == []
 
 
 # --- Constraint enforcement (Phase D) ---
@@ -334,9 +329,7 @@ def test_inc_violation(transducer_db):
         VALUES ('VA', NULL, 'Amy', NULL, 'PA', 'EA', NULL, NULL)
         """
     )
-    with pytest.raises(
-        psycopg.errors.RaiseException, match="INC violation"
-    ):
+    with pytest.raises(psycopg.errors.RaiseException, match="INC violation"):
         transducer_db.execute(
             """
             INSERT INTO transducer._person_source
@@ -356,9 +349,7 @@ def test_mvd_violation(transducer_db):
         """
     )
     # Same ssn, different name → cross-product tuple doesn't exist → violation
-    with pytest.raises(
-        psycopg.errors.RaiseException, match="MVD constraint violation"
-    ):
+    with pytest.raises(psycopg.errors.RaiseException, match="MVD constraint violation"):
         transducer_db.execute(
             """
             INSERT INTO transducer._person_source
@@ -376,101 +367,58 @@ def test_mvd_violation(transducer_db):
 # reconstructs the universal tuple into _person_source.
 
 
-
 def test_target_to_source_simple_person(transducer_db):
     """Insert a Level 0 person via target tables; verify _person_source populated."""
     # 3 target inserts → seed = 4
     transducer_db.execute("INSERT INTO transducer._loop VALUES (4)")
-    transducer_db.execute(
-        "INSERT INTO transducer._person VALUES ('T1', 'Dana')"
-    )
-    transducer_db.execute(
-        "INSERT INTO transducer._personphone VALUES ('T1', 'TP1')"
-    )
-    transducer_db.execute(
-        "INSERT INTO transducer._personemail VALUES ('T1', 'TE1')"
-    )
+    transducer_db.execute("INSERT INTO transducer._person VALUES ('T1', 'Dana')")
+    transducer_db.execute("INSERT INTO transducer._personphone VALUES ('T1', 'TP1')")
+    transducer_db.execute("INSERT INTO transducer._personemail VALUES ('T1', 'TE1')")
 
-    source = transducer_db.execute(
-        "SELECT * FROM transducer._person_source"
-    ).fetchall()
+    source = transducer_db.execute("SELECT * FROM transducer._person_source").fetchall()
     assert len(source) == 1, f"Expected 1 row in _person_source, got {len(source)}"
     assert source[0] == ("T1", None, "Dana", None, "TP1", "TE1", None, None)
 
     # Tracking cleaned up
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._loop"
-    ).fetchall() == []
+    assert transducer_db.execute("SELECT * FROM transducer._loop").fetchall() == []
 
 
 def test_target_to_source_employee(transducer_db):
     """Insert a Level 1 employee via target tables; verify _person_source populated."""
     # 5 target inserts → seed = 6
     transducer_db.execute("INSERT INTO transducer._loop VALUES (6)")
-    transducer_db.execute(
-        "INSERT INTO transducer._person VALUES ('T2', 'Eve')"
-    )
-    transducer_db.execute(
-        "INSERT INTO transducer._employee VALUES ('T2', 'TEMP2')"
-    )
+    transducer_db.execute("INSERT INTO transducer._person VALUES ('T2', 'Eve')")
+    transducer_db.execute("INSERT INTO transducer._employee VALUES ('T2', 'TEMP2')")
     transducer_db.execute(
         "INSERT INTO transducer._employeedate VALUES ('TEMP2', 'TH2')"
     )
-    transducer_db.execute(
-        "INSERT INTO transducer._personphone VALUES ('T2', 'TP2')"
-    )
-    transducer_db.execute(
-        "INSERT INTO transducer._personemail VALUES ('T2', 'TE2')"
-    )
+    transducer_db.execute("INSERT INTO transducer._personphone VALUES ('T2', 'TP2')")
+    transducer_db.execute("INSERT INTO transducer._personemail VALUES ('T2', 'TE2')")
 
-    source = transducer_db.execute(
-        "SELECT * FROM transducer._person_source"
-    ).fetchall()
+    source = transducer_db.execute("SELECT * FROM transducer._person_source").fetchall()
     assert len(source) == 1, f"Expected 1 row in _person_source, got {len(source)}"
     assert source[0] == ("T2", "TEMP2", "Eve", "TH2", "TP2", "TE2", None, None)
 
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._loop"
-    ).fetchall() == []
+    assert transducer_db.execute("SELECT * FROM transducer._loop").fetchall() == []
 
 
 def test_target_to_source_full_employee(transducer_db):
     """Insert a Level 2 full employee via target tables; verify _person_source populated."""
     # 8 target inserts → seed = 9
     transducer_db.execute("INSERT INTO transducer._loop VALUES (9)")
-    transducer_db.execute(
-        "INSERT INTO transducer._person VALUES ('T3', 'Finn')"
-    )
-    transducer_db.execute(
-        "INSERT INTO transducer._employee VALUES ('T3', 'TEMP3')"
-    )
+    transducer_db.execute("INSERT INTO transducer._person VALUES ('T3', 'Finn')")
+    transducer_db.execute("INSERT INTO transducer._employee VALUES ('T3', 'TEMP3')")
     transducer_db.execute(
         "INSERT INTO transducer._employeedate VALUES ('TEMP3', 'TH3')"
     )
-    transducer_db.execute(
-        "INSERT INTO transducer._ped VALUES ('T3', 'TEMP3')"
-    )
-    transducer_db.execute(
-        "INSERT INTO transducer._deptmanager VALUES ('TD3', 'TEMP3')"
-    )
-    transducer_db.execute(
-        "INSERT INTO transducer._peddept VALUES ('TEMP3', 'TD3')"
-    )
-    transducer_db.execute(
-        "INSERT INTO transducer._personphone VALUES ('T3', 'TP3')"
-    )
-    transducer_db.execute(
-        "INSERT INTO transducer._personemail VALUES ('T3', 'TE3')"
-    )
+    transducer_db.execute("INSERT INTO transducer._ped VALUES ('T3', 'TEMP3')")
+    transducer_db.execute("INSERT INTO transducer._deptmanager VALUES ('TD3', 'TEMP3')")
+    transducer_db.execute("INSERT INTO transducer._peddept VALUES ('TEMP3', 'TD3')")
+    transducer_db.execute("INSERT INTO transducer._personphone VALUES ('T3', 'TP3')")
+    transducer_db.execute("INSERT INTO transducer._personemail VALUES ('T3', 'TE3')")
 
-    source = transducer_db.execute(
-        "SELECT * FROM transducer._person_source"
-    ).fetchall()
+    source = transducer_db.execute("SELECT * FROM transducer._person_source").fetchall()
     assert len(source) == 1, f"Expected 1 row in _person_source, got {len(source)}"
-    assert source[0] == (
-        "T3", "TEMP3", "Finn", "TH3", "TP3", "TE3", "TD3", "TEMP3"
-    )
+    assert source[0] == ("T3", "TEMP3", "Finn", "TH3", "TP3", "TE3", "TD3", "TEMP3")
 
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._loop"
-    ).fetchall() == []
+    assert transducer_db.execute("SELECT * FROM transducer._loop").fetchall() == []
