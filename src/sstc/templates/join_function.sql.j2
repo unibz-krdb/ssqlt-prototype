@@ -1,6 +1,7 @@
 CREATE OR REPLACE FUNCTION {{ schema }}.{{ direction }}_{{ table_name }}_{{ suffix }}_JOIN_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+    DROP TABLE IF EXISTS temp_table;
     CREATE TEMPORARY TABLE temp_table(
 {% for col in universal_columns %}
         {{ col.name }} {{ col.data_type }}{% if not loop.last %},{% endif %}

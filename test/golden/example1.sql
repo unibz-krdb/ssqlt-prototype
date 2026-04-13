@@ -655,6 +655,7 @@ WHERE 1<>1;
 CREATE OR REPLACE FUNCTION transducer.source_person_source_INSERT_JOIN_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+    DROP TABLE IF EXISTS temp_table;
     CREATE TEMPORARY TABLE temp_table(
         ssn VARCHAR(100),
         empid VARCHAR(100),
@@ -695,6 +696,7 @@ WHERE 1<>1;
 CREATE OR REPLACE FUNCTION transducer.source_person_source_DELETE_JOIN_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+    DROP TABLE IF EXISTS temp_table;
     CREATE TEMPORARY TABLE temp_table(
         ssn VARCHAR(100),
         empid VARCHAR(100),
@@ -735,6 +737,7 @@ WHERE 1<>1;
 CREATE OR REPLACE FUNCTION transducer.target_person_INSERT_JOIN_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+    DROP TABLE IF EXISTS temp_table;
     CREATE TEMPORARY TABLE temp_table(
         ssn VARCHAR(100),
         empid VARCHAR(100),
@@ -789,6 +792,7 @@ WHERE 1<>1;
 CREATE OR REPLACE FUNCTION transducer.target_person_DELETE_JOIN_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+    DROP TABLE IF EXISTS temp_table;
     CREATE TEMPORARY TABLE temp_table(
         ssn VARCHAR(100),
         empid VARCHAR(100),
@@ -843,6 +847,7 @@ WHERE 1<>1;
 CREATE OR REPLACE FUNCTION transducer.target_personphone_INSERT_JOIN_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+    DROP TABLE IF EXISTS temp_table;
     CREATE TEMPORARY TABLE temp_table(
         ssn VARCHAR(100),
         empid VARCHAR(100),
@@ -897,6 +902,7 @@ WHERE 1<>1;
 CREATE OR REPLACE FUNCTION transducer.target_personphone_DELETE_JOIN_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+    DROP TABLE IF EXISTS temp_table;
     CREATE TEMPORARY TABLE temp_table(
         ssn VARCHAR(100),
         empid VARCHAR(100),
@@ -951,6 +957,7 @@ WHERE 1<>1;
 CREATE OR REPLACE FUNCTION transducer.target_personemail_INSERT_JOIN_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+    DROP TABLE IF EXISTS temp_table;
     CREATE TEMPORARY TABLE temp_table(
         ssn VARCHAR(100),
         empid VARCHAR(100),
@@ -1005,6 +1012,7 @@ WHERE 1<>1;
 CREATE OR REPLACE FUNCTION transducer.target_personemail_DELETE_JOIN_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+    DROP TABLE IF EXISTS temp_table;
     CREATE TEMPORARY TABLE temp_table(
         ssn VARCHAR(100),
         empid VARCHAR(100),
@@ -1059,6 +1067,7 @@ WHERE 1<>1;
 CREATE OR REPLACE FUNCTION transducer.target_employee_INSERT_JOIN_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+    DROP TABLE IF EXISTS temp_table;
     CREATE TEMPORARY TABLE temp_table(
         ssn VARCHAR(100),
         empid VARCHAR(100),
@@ -1113,6 +1122,7 @@ WHERE 1<>1;
 CREATE OR REPLACE FUNCTION transducer.target_employee_DELETE_JOIN_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+    DROP TABLE IF EXISTS temp_table;
     CREATE TEMPORARY TABLE temp_table(
         ssn VARCHAR(100),
         empid VARCHAR(100),
@@ -1167,6 +1177,7 @@ WHERE 1<>1;
 CREATE OR REPLACE FUNCTION transducer.target_employeedate_INSERT_JOIN_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+    DROP TABLE IF EXISTS temp_table;
     CREATE TEMPORARY TABLE temp_table(
         ssn VARCHAR(100),
         empid VARCHAR(100),
@@ -1221,6 +1232,7 @@ WHERE 1<>1;
 CREATE OR REPLACE FUNCTION transducer.target_employeedate_DELETE_JOIN_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+    DROP TABLE IF EXISTS temp_table;
     CREATE TEMPORARY TABLE temp_table(
         ssn VARCHAR(100),
         empid VARCHAR(100),
@@ -1275,6 +1287,7 @@ WHERE 1<>1;
 CREATE OR REPLACE FUNCTION transducer.target_ped_INSERT_JOIN_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+    DROP TABLE IF EXISTS temp_table;
     CREATE TEMPORARY TABLE temp_table(
         ssn VARCHAR(100),
         empid VARCHAR(100),
@@ -1329,6 +1342,7 @@ WHERE 1<>1;
 CREATE OR REPLACE FUNCTION transducer.target_ped_DELETE_JOIN_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+    DROP TABLE IF EXISTS temp_table;
     CREATE TEMPORARY TABLE temp_table(
         ssn VARCHAR(100),
         empid VARCHAR(100),
@@ -1383,6 +1397,7 @@ WHERE 1<>1;
 CREATE OR REPLACE FUNCTION transducer.target_peddept_INSERT_JOIN_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+    DROP TABLE IF EXISTS temp_table;
     CREATE TEMPORARY TABLE temp_table(
         ssn VARCHAR(100),
         empid VARCHAR(100),
@@ -1437,6 +1452,7 @@ WHERE 1<>1;
 CREATE OR REPLACE FUNCTION transducer.target_peddept_DELETE_JOIN_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+    DROP TABLE IF EXISTS temp_table;
     CREATE TEMPORARY TABLE temp_table(
         ssn VARCHAR(100),
         empid VARCHAR(100),
@@ -1491,6 +1507,7 @@ WHERE 1<>1;
 CREATE OR REPLACE FUNCTION transducer.target_deptmanager_INSERT_JOIN_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+    DROP TABLE IF EXISTS temp_table;
     CREATE TEMPORARY TABLE temp_table(
         ssn VARCHAR(100),
         empid VARCHAR(100),
@@ -1545,6 +1562,7 @@ WHERE 1<>1;
 CREATE OR REPLACE FUNCTION transducer.target_deptmanager_DELETE_JOIN_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+    DROP TABLE IF EXISTS temp_table;
     CREATE TEMPORARY TABLE temp_table(
         ssn VARCHAR(100),
         empid VARCHAR(100),
@@ -1671,6 +1689,7 @@ BEGIN
         RETURN NULL;
     END IF;
 
+    DROP TABLE IF EXISTS temp_table_join;
     CREATE TEMPORARY TABLE temp_table_join(
         ssn VARCHAR(100),
         empid VARCHAR(100),
@@ -1849,6 +1868,7 @@ BEGIN
         RETURN NULL;
     END IF;
 
+    DROP TABLE IF EXISTS temp_table_join;
     CREATE TEMPORARY TABLE temp_table_join(
         ssn VARCHAR(100),
         empid VARCHAR(100),

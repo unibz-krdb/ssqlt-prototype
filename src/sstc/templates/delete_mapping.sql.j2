@@ -8,6 +8,7 @@ BEGIN
     END IF;
 
 {% if use_temp_join %}
+    DROP TABLE IF EXISTS temp_table_join;
     CREATE TEMPORARY TABLE temp_table_join(
 {% for col in universal_columns %}
         {{ col.name }} {{ col.data_type }}{% if not loop.last %},{% endif %}
