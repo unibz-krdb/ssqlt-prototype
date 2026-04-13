@@ -26,10 +26,8 @@ BEGIN
             EXCEPT
             (SELECT * FROM {{ schema }}._{{ table_name }})
         );
-        RETURN NEW;
-    ELSE
-        RETURN NEW;
     END IF;
+    RETURN NEW;
 END;
 $$;
 

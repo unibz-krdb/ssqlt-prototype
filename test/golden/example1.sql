@@ -100,10 +100,8 @@ BEGIN
             EXCEPT
             (SELECT * FROM transducer._person_source)
         );
-        RETURN NEW;
-    ELSE
-        RETURN NEW;
     END IF;
+    RETURN NEW;
 END;
 $$;
 
