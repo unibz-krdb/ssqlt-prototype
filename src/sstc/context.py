@@ -36,6 +36,9 @@ class Direction(enum.StrEnum):
     TARGET = "target"
 
 
+UNIVERSAL_MAPPING_NAME = "universalmapping"
+
+
 class Context:
     """Generic base class for source and target contexts."""
 
@@ -121,7 +124,7 @@ class Context:
             schema=schema,
         ):
             if isinstance(node, AssignNode):
-                if node.name.lower() == "UniversalMapping".lower():
+                if node.name.lower() == UNIVERSAL_MAPPING_NAME:
                     universal_mapping = node
                 else:
                     relations.append(node)
@@ -131,7 +134,7 @@ class Context:
                 raise ValueError(f"Unexpected node type: {type(node)}")
 
         if universal_mapping is None:
-            raise Exception("UniversalMapping is not defined.")
+            raise ValueError("UniversalMapping is not defined in the input file.")
 
         tables = Table.from_relations_and_dependencies(
             definitions=relations,

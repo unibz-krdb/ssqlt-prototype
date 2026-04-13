@@ -71,3 +71,9 @@ def test_example2_context_nullability(example_2_ctx):
     nullable = [a.name for a in schema if a.is_nullable]
     assert set(mandatory) == {"ssn", "name", "phone", "email"}
     assert set(nullable) == {"empid", "hdate", "dept", "manager"}
+
+
+def test_universal_mapping_constant_exists():
+    """The reserved mapping name should be a module-level constant."""
+    from sstc.context import UNIVERSAL_MAPPING_NAME
+    assert UNIVERSAL_MAPPING_NAME == "universalmapping"
