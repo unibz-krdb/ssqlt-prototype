@@ -10,9 +10,20 @@ from sstc.guard import (
 
 
 def _extract_section(result: str, start_marker: str, end_marker: str) -> str:
+    """Extract SQL between two function definitions (CREATE OR REPLACE FUNCTION ... start_marker)."""
+    start_pattern = "CREATE OR REPLACE FUNCTION"
+    # Find the function definition containing start_marker
     start = result.index(start_marker)
-    end = result.index(end_marker)
-    return result[start:end]
+    # Walk back to the CREATE OR REPLACE FUNCTION line
+    fn_start = result.rfind(start_pattern, 0, start)
+    if fn_start == -1:
+        fn_start = start
+    # Find the next function definition containing end_marker
+    end = result.index(end_marker, start + len(start_marker))
+    fn_end = result.rfind(start_pattern, 0, end)
+    if fn_end == -1:
+        fn_end = end
+    return result[fn_start:fn_end]
 
 
 def _assert_compile_structure(sql: str):
