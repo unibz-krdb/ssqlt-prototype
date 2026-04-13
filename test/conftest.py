@@ -75,8 +75,14 @@ def pg_container():
     pytest.importorskip("testcontainers", reason="testcontainers not installed")
     from testcontainers.postgres import PostgresContainer
 
-    with PostgresContainer("postgres:17", driver=None) as pg:
-        yield pg
+    try:
+        container = PostgresContainer("postgres:17", driver=None)
+        container.start()
+    except Exception as e:
+        pytest.skip(f"Docker not available: {e}")
+
+    yield container
+    container.stop()
 
 
 @pytest.fixture
