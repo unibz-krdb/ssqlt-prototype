@@ -1,5 +1,6 @@
 import pytest
 
+from sstc.constraints import inc_sql
 from sstc.guard import (
     GuardHierarchy,
     GuardLevel,
@@ -665,7 +666,7 @@ def test_extract_guard_attrs(example_1_gen, example_1_ctx, table_name, expected)
 )
 def test_inc_sql(example_1_gen, example_1_ctx, context_attr, expect_empty):
     ctx = getattr(example_1_ctx, context_attr)
-    result = example_1_gen._inc_sql(ctx)
+    result = inc_sql(ctx, example_1_gen._render)
     if expect_empty:
         assert result == ""
     else:

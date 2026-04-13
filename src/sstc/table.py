@@ -26,8 +26,6 @@ class Table:
 
     @property
     def name(self) -> str:
-        if self.definition.name is None:
-            raise ValueError("Node must have a name")
         return self.definition.name
 
     @property

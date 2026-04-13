@@ -12,7 +12,6 @@ import jinja2
 
 from .constraints import UnsupportedError as UnsupportedError
 from .constraints import constraints, foreign_keys
-from .constraints import inc_sql as _inc_sql_impl
 from .context import Context, Direction
 from .guard import (
     GuardHierarchy,
@@ -139,10 +138,6 @@ class Generator:
     def _extract_table_guard_attrs(self, table: Table) -> list[str]:
         """Extract guard attributes from a target table's select clause."""
         return extract_table_guard_attrs(table)
-
-    def _inc_sql(self, context: Context) -> str:
-        """Backward-compat wrapper for tests."""
-        return _inc_sql_impl(context, self._render)
 
     def _foreign_keys(self) -> str:
         return foreign_keys(self.ctx.source, self.ctx.target, self.schema)
