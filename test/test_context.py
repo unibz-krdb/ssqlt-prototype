@@ -110,3 +110,51 @@ def test_universal_mapping_constant_exists():
     from sstc.context import UNIVERSAL_MAPPING_NAME
 
     assert UNIVERSAL_MAPPING_NAME == "universalmapping"
+
+
+def test_target_universal_mapping_join_order_matches_declared_tables(example_1_ctx):
+    target = example_1_ctx.target
+    assert target.universal_mapping_join_order == [
+        "person",
+        "personphone",
+        "personemail",
+        "employee",
+        "employeedate",
+        "ped",
+        "peddept",
+        "deptmanager",
+    ]
+    assert sorted(target.universal_mapping_join_order) == sorted(
+        t.name for t in target.tables
+    )
+
+
+def test_source_universal_mapping_join_order_is_single_table(example_1_ctx):
+    assert example_1_ctx.source.universal_mapping_join_order == ["person_source"]
+
+
+def test_from_file_rejects_universal_mapping_missing_declared_table(tmp_path):
+    """If a declared table is missing from UniversalMapping, from_file must raise."""
+    import json
+    import pytest
+    from sstc.context import Context, Direction
+
+    schema_path = tmp_path / "universal.json"
+    schema_path.write_text(
+        json.dumps(
+            [
+                {"name": "ssn", "data_type": "VARCHAR(100)", "is_nullable": False},
+                {"name": "name", "data_type": "VARCHAR(100)", "is_nullable": False},
+            ]
+        )
+    )
+    ra_path = tmp_path / "source.txt"
+    ra_path.write_text(
+        "T1 := \\project_{ssn, name} Universal;\n"
+        "T2 := \\project_{ssn} Universal;\n"
+        "pk_{ssn} T1;\n"
+        "pk_{ssn} T2;\n"
+        "UniversalMapping := \\project_{ssn, name} T1;\n"
+    )
+    with pytest.raises(ValueError, match="UniversalMapping tables"):
+        Context.from_file(str(schema_path), str(ra_path), Direction.SOURCE)

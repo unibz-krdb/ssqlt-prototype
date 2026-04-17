@@ -27,6 +27,7 @@ from rapt2.treebrd.schema import Schema
 from sstc.definition import AttributeSchema
 
 from .table import Table
+from .universal_mapping import extract_join_order
 
 
 class Direction(enum.StrEnum):
@@ -98,6 +99,18 @@ class Context:
     def inclusion_subsumptions(self) -> list[InclusionSubsumptionNode]:
         return self._nodes_of_type(InclusionSubsumptionNode)
 
+    @functools.cached_property
+    def universal_mapping_join_order(self) -> list[str]:
+        """Ordered base-table names from the UniversalMapping join chain.
+
+        The sequence mirrors the user's declared ``\\natural_join`` order.
+        Raises ValueError if the UniversalMapping was not parsed (should
+        be unreachable since ``from_file`` rejects missing definitions).
+        """
+        if self.universal_mapping is None:
+            raise ValueError("universal_mapping was not parsed")
+        return extract_join_order(self.universal_mapping)
+
     @classmethod
     def from_file(
         cls,
@@ -155,6 +168,17 @@ class Context:
             definitions=relations,
             dependency_nodes=dependencies,
         )
+
+        declared = {t.name for t in tables}
+        mapping_tables = set(extract_join_order(universal_mapping))
+        missing = declared - mapping_tables
+        extra = mapping_tables - declared
+        if missing or extra:
+            raise ValueError(
+                "UniversalMapping tables do not match declared relations "
+                f"(missing from mapping: {sorted(missing)}; "
+                f"extra in mapping: {sorted(extra)})"
+            )
 
         return cls(
             tables=tables,
