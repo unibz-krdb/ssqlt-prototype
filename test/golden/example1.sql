@@ -41,6 +41,114 @@ CREATE TABLE transducer._deptmanager (
 );
 
 
+CREATE OR REPLACE FUNCTION transducer.person_source_REJECT_UPDATE()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'UPDATE on %.% is not supported by this transducer; use DELETE + INSERT', TG_TABLE_SCHEMA, TG_TABLE_NAME;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER person_source_REJECT_UPDATE
+BEFORE UPDATE ON transducer._person_source
+FOR EACH ROW EXECUTE FUNCTION transducer.person_source_REJECT_UPDATE();
+
+
+CREATE OR REPLACE FUNCTION transducer.person_REJECT_UPDATE()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'UPDATE on %.% is not supported by this transducer; use DELETE + INSERT', TG_TABLE_SCHEMA, TG_TABLE_NAME;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER person_REJECT_UPDATE
+BEFORE UPDATE ON transducer._person
+FOR EACH ROW EXECUTE FUNCTION transducer.person_REJECT_UPDATE();
+
+
+CREATE OR REPLACE FUNCTION transducer.personphone_REJECT_UPDATE()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'UPDATE on %.% is not supported by this transducer; use DELETE + INSERT', TG_TABLE_SCHEMA, TG_TABLE_NAME;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER personphone_REJECT_UPDATE
+BEFORE UPDATE ON transducer._personphone
+FOR EACH ROW EXECUTE FUNCTION transducer.personphone_REJECT_UPDATE();
+
+
+CREATE OR REPLACE FUNCTION transducer.personemail_REJECT_UPDATE()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'UPDATE on %.% is not supported by this transducer; use DELETE + INSERT', TG_TABLE_SCHEMA, TG_TABLE_NAME;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER personemail_REJECT_UPDATE
+BEFORE UPDATE ON transducer._personemail
+FOR EACH ROW EXECUTE FUNCTION transducer.personemail_REJECT_UPDATE();
+
+
+CREATE OR REPLACE FUNCTION transducer.employee_REJECT_UPDATE()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'UPDATE on %.% is not supported by this transducer; use DELETE + INSERT', TG_TABLE_SCHEMA, TG_TABLE_NAME;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER employee_REJECT_UPDATE
+BEFORE UPDATE ON transducer._employee
+FOR EACH ROW EXECUTE FUNCTION transducer.employee_REJECT_UPDATE();
+
+
+CREATE OR REPLACE FUNCTION transducer.employeedate_REJECT_UPDATE()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'UPDATE on %.% is not supported by this transducer; use DELETE + INSERT', TG_TABLE_SCHEMA, TG_TABLE_NAME;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER employeedate_REJECT_UPDATE
+BEFORE UPDATE ON transducer._employeedate
+FOR EACH ROW EXECUTE FUNCTION transducer.employeedate_REJECT_UPDATE();
+
+
+CREATE OR REPLACE FUNCTION transducer.ped_REJECT_UPDATE()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'UPDATE on %.% is not supported by this transducer; use DELETE + INSERT', TG_TABLE_SCHEMA, TG_TABLE_NAME;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER ped_REJECT_UPDATE
+BEFORE UPDATE ON transducer._ped
+FOR EACH ROW EXECUTE FUNCTION transducer.ped_REJECT_UPDATE();
+
+
+CREATE OR REPLACE FUNCTION transducer.peddept_REJECT_UPDATE()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'UPDATE on %.% is not supported by this transducer; use DELETE + INSERT', TG_TABLE_SCHEMA, TG_TABLE_NAME;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER peddept_REJECT_UPDATE
+BEFORE UPDATE ON transducer._peddept
+FOR EACH ROW EXECUTE FUNCTION transducer.peddept_REJECT_UPDATE();
+
+
+CREATE OR REPLACE FUNCTION transducer.deptmanager_REJECT_UPDATE()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'UPDATE on %.% is not supported by this transducer; use DELETE + INSERT', TG_TABLE_SCHEMA, TG_TABLE_NAME;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER deptmanager_REJECT_UPDATE
+BEFORE UPDATE ON transducer._deptmanager
+FOR EACH ROW EXECUTE FUNCTION transducer.deptmanager_REJECT_UPDATE();
+
+
 ALTER TABLE transducer._personphone ADD FOREIGN KEY (ssn) REFERENCES transducer._person (ssn);
 ALTER TABLE transducer._personemail ADD FOREIGN KEY (ssn) REFERENCES transducer._person (ssn);
 ALTER TABLE transducer._employeedate ADD FOREIGN KEY (empid) REFERENCES transducer._employee (empid);

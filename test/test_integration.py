@@ -302,6 +302,27 @@ def test_inc_violation(transducer_db, schema_info):
         )
 
 
+def test_update_on_base_table_is_rejected(transducer_db, schema_info):
+    """UPDATE on any base table raises — UPDATE propagation is not implemented.
+
+    The BEFORE UPDATE trigger emitted per base table fails loudly instead
+    of silently bypassing the mapping pipeline.
+    """
+    insert_source(
+        transducer_db, schema_info, ssn="U9", name="Uri", phone="UP9", email="UE9"
+    )
+    with pytest.raises(psycopg.errors.RaiseException, match="use DELETE \\+ INSERT"):
+        transducer_db.execute(
+            f"UPDATE transducer.{schema_info.source_table} "
+            f"SET name = 'Renamed' WHERE ssn = 'U9'"
+        )
+    with pytest.raises(psycopg.errors.RaiseException, match="use DELETE \\+ INSERT"):
+        transducer_db.execute(
+            f"UPDATE transducer.{schema_info.tables['person']} "
+            f"SET name = 'Renamed' WHERE ssn = 'U9'"
+        )
+
+
 def test_mvd_violation(transducer_db, schema_info):
     """MVD {ssn}→→{phone}: inconsistent non-MVD attrs for same ssn rejected."""
     if schema_info.example != "example1":
@@ -524,10 +545,11 @@ def test_source_to_target_to_source_roundtrip(transducer_db, schema_info):
 def test_level_upgrade_via_reinsert_blocked(transducer_db, schema_info):
     """Upgrading an existing row (L0 → L1) by re-inserting the same ssn is rejected.
 
-    Documents the current limitation: UPDATE is not yet compiled, so you cannot
-    add empid/hdate to an existing L0 row. Either the source PK (identical cols)
-    or the MVD check (same ssn, different non-MVD attrs) fires before any
-    trigger populates L1 targets.
+    UPDATE is compiled only as a rejection trigger (see
+    ``test_update_on_base_table_is_rejected``), so L0 → L1 can only be
+    attempted via re-INSERT. Either the source PK (identical cols) or the
+    MVD check (same ssn, different non-MVD attrs) fires before any trigger
+    populates L1 targets.
     """
     insert_source(
         transducer_db, schema_info, ssn="U1", name="Una", phone="UP1", email="UE1"

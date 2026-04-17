@@ -36,10 +36,10 @@ def _assert_compile_structure(sql: str):
     assert create_count == 46, f"Expected 46 CREATE TABLE, got {create_count}"
 
     fn_count = sql.count("CREATE OR REPLACE FUNCTION")
-    assert fn_count == 46, f"Expected 46 functions, got {fn_count}"
+    assert fn_count == 55, f"Expected 55 functions, got {fn_count}"
 
     trigger_count = sql.count("CREATE TRIGGER")
-    assert trigger_count == 60, f"Expected 60 triggers, got {trigger_count}"
+    assert trigger_count == 69, f"Expected 69 triggers, got {trigger_count}"
 
     assert "SOURCE_INSERT_FN" in sql
     assert "SOURCE_DELETE_FN" in sql
@@ -82,6 +82,17 @@ def test_base_tables(example_1_gen):
         "deptmanager",
     ]:
         assert f"CREATE TABLE transducer._{name}" in result
+
+
+def test_reject_update_triggers_present(example_1_gen):
+    result = example_1_gen.compile()
+    # One BEFORE UPDATE trigger per base table: 1 source + 8 target = 9
+    assert result.count("BEFORE UPDATE ON") == 9
+    # Each table yields 3 occurrences of _REJECT_UPDATE
+    # (function def, trigger def, EXECUTE FUNCTION): 9 * 3 = 27
+    assert result.count("_REJECT_UPDATE") == 27
+    # Distinctive message (other RAISE EXCEPTIONs exist for CFDs etc.)
+    assert "use DELETE + INSERT" in result
 
 
 def test_foreign_keys(example_1_gen):

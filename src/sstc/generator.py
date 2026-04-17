@@ -78,6 +78,7 @@ class Generator:
         sections = [
             self._preamble(),
             self._base_tables(),
+            self._reject_updates(),
             self._foreign_keys(),
             self._constraints(),
             self._tracking(),
@@ -123,6 +124,20 @@ class Generator:
             for table in context.tables:
                 parts.append(self._create_table(table, context))
         return "\n".join(parts)
+
+    def _reject_updates(self) -> str:
+        """Emit BEFORE UPDATE triggers that raise an exception on every base table.
+
+        UPDATE propagation is not implemented; this ensures the transducer
+        fails loudly rather than silently bypassing mapping functions.
+        """
+        parts = []
+        for context in [self.ctx.source, self.ctx.target]:
+            for table in context.tables:
+                parts.append(
+                    self._render("reject_update.sql.j2", table_name=table.name)
+                )
+        return "\n\n".join(parts)
 
     def _build_guard_hierarchy(self) -> GuardHierarchy:
         """Build (and cache) the specialization hierarchy from universal schema + target table guards."""
