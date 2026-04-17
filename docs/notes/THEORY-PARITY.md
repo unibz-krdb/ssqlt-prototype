@@ -2,7 +2,7 @@
 
 This document records how closely the SSTC implementation in `src/sstc/` matches the theoretical design in `docs/notes/`. It complements `open-problems.md` by giving an at-a-glance parity table and by flagging gaps that are not yet catalogued there.
 
-Last reviewed: 2026-04-17.
+Last reviewed: 2026-04-17 (Tier 2 shipped).
 
 ## Summary
 
@@ -51,7 +51,7 @@ The `_LOOP` dual-role mechanism from `architecture/timing-and-ordering.md` (sign
 | Automatic NATURAL JOIN ordering | acknowledged open problem | none; joins follow RA declaration order |
 | Connected-component partitioning for join layer | acknowledged open problem | none; single full join |
 | `_LOOP` pre-seeding for multi-table DELETE | documented client contract | no helper emitted |
-| `universal_mapping` RA expression | central in theory — defines the universal-to-context mapping | `Context.from_file` validates presence (`context.py:137`) but the relational expression is never inspected; downstream code reads `Table.attributes` directly. Tracked in `open-problems.md` ("universal_mapping parsed but unread", 2026-04-17) |
+| `universal_mapping` RA expression | central in theory — defines the universal-to-context mapping | consumed for join ordering and projection via `universal_mapping.extract_join_order`; `Context.from_file` validates the mapping tables match declared relations. Deeper join-tree consumption (disconnected components, multi-source, FK-graph-derived ordering) is Tier 3 |
 
 ## Terminology that does map to code
 
@@ -78,7 +78,11 @@ One further item is documented in prose but not yet in `open-problems.md` as a f
 
 - **UPDATE silent no-op** — resolved: per-table `BEFORE UPDATE` trigger emits `RAISE EXCEPTION`. See `templates/reject_update.sql.j2` and the UPDATE row of the operational parity table.
 - **Inter-table INC (refs ≠ PK) silent skip** — resolved for single-column: `AFTER INSERT DEFERRABLE INITIALLY DEFERRED` constraint trigger (`templates/inc_inter_check.sql.j2`). Multi-column case remains `Rejected` (Tier 3).
-- **`universal_mapping` parsed but unread** — now tracked as a formal entry in `open-problems.md`; consumption is a Tier 2 follow-up.
+- **`universal_mapping` parsed but unread** — tracked as a formal entry in `open-problems.md`; consumption followed in Tier 2.
+
+### Closed in Tier 2 (2026-04-17)
+
+- **`universal_mapping` consumed for join ordering** — `src/sstc/universal_mapping.py` extracts projection attributes and a left-to-right base-table sequence from the `AssignNode`. `Context.universal_mapping_join_order` surfaces that sequence; `Generator._join`, `_mapping`, and `_build_*_delete_checks` iterate in mapping order instead of declaration order. `Context.from_file` raises when the mapping tables diverge from the declared relations. For the two reference examples the compiled SQL is byte-unchanged; the behaviour is now guaranteed by construction.
 
 ## How to use this document
 

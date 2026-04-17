@@ -68,9 +68,9 @@ The reserved `UniversalMapping` AssignNode in each context is parsed and its pre
 
 This matters because input writers are required to provide a `UniversalMapping` definition that has no observable effect on the compiled SQL. The field is either dead weight that should be removed from the input format, or it encodes structural information (most likely the join tree) that needs to be consumed — in which case the Tier 2 join-ordering algorithm would be the consumer.
 
-Current status: documented as a gap. Expected to be resolved by Tier 2 (automatic NATURAL JOIN ordering) through consumption of the RA expression.
+Resolved (Tier 2, 2026-04-17): `src/sstc/universal_mapping.py` extracts the join order and projection list from the AssignNode. `Context.universal_mapping_join_order` exposes the ordered base-table sequence, and `Generator._join` / `Generator._mapping` / `_build_*_delete_checks` iterate through that list instead of `context.tables`. `Context.from_file` raises if the mapping tables diverge from the declared relations. Deeper consumption of the join tree — for disconnected-component detection, multi-source support, or deriving join order from the FK graph when `UniversalMapping` is omitted — remains Tier 3 work.
 
-Source: `src/sstc/context.py:128-138`, `docs/notes/THEORY-PARITY.md` operational parity table
+Source: `src/sstc/context.py`, `src/sstc/universal_mapping.py`, `src/sstc/generator.py`
 
 ## Tuple containment in target-to-source mapping with NULLs
 
