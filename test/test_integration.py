@@ -302,6 +302,33 @@ def test_inc_violation(transducer_db, schema_info):
         )
 
 
+def test_inter_table_inc_trigger_rejects_orphan(transducer_db, schema_info):
+    """Deferred INC trigger: DeptManager.dept must appear in PEDDept.dept.
+
+    Previously this equivalence direction was silently unenforced (emit_fk
+    returned None because dept is not PEDDept's PK). Now a DEFERRABLE
+    INITIALLY DEFERRED constraint trigger enforces it — under autocommit
+    every statement is its own transaction, so the deferred check still
+    runs at the end of the single INSERT.
+    """
+    if schema_info.example != "example1":
+        pytest.skip("example1-specific inter-table INC wiring")
+    tbl = schema_info.tables
+    # Satisfy DeptManager.manager -> Employee.empid FK before exercising the
+    # new trigger on DeptManager.dept.
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['person']} VALUES ('ORPHAN_M', 'x')"
+    )
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['employee']} VALUES ('ORPHAN_M', 'ORPHAN_M')"
+    )
+    with pytest.raises(psycopg.errors.RaiseException, match="INC violation"):
+        transducer_db.execute(
+            f"INSERT INTO transducer.{tbl['dept_manager']} "
+            f"VALUES ('ORPHAN_D', 'ORPHAN_M')"
+        )
+
+
 def test_update_on_base_table_is_rejected(transducer_db, schema_info):
     """UPDATE on any base table raises — UPDATE propagation is not implemented.
 
@@ -354,13 +381,11 @@ def test_target_to_source_simple_person(transducer_db, schema_info):
     """Insert a Level 0 person via target tables; verify source populated."""
     tbl = schema_info.tables
     seed_target_loop(transducer_db, 3)
-    transducer_db.execute(f"INSERT INTO transducer.{tbl['person']} VALUES ('T1', 'Dana')")
     transducer_db.execute(
-        f"INSERT INTO transducer.{tbl['phone']} VALUES ('T1', 'TP1')"
+        f"INSERT INTO transducer.{tbl['person']} VALUES ('T1', 'Dana')"
     )
-    transducer_db.execute(
-        f"INSERT INTO transducer.{tbl['email']} VALUES ('T1', 'TE1')"
-    )
+    transducer_db.execute(f"INSERT INTO transducer.{tbl['phone']} VALUES ('T1', 'TP1')")
+    transducer_db.execute(f"INSERT INTO transducer.{tbl['email']} VALUES ('T1', 'TE1')")
 
     source = transducer_db.execute(
         f"SELECT * FROM transducer.{schema_info.source_table}"
@@ -375,19 +400,17 @@ def test_target_to_source_employee(transducer_db, schema_info):
     """Insert a Level 1 employee via target tables; verify source populated."""
     tbl = schema_info.tables
     seed_target_loop(transducer_db, 5)
-    transducer_db.execute(f"INSERT INTO transducer.{tbl['person']} VALUES ('T2', 'Eve')")
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['person']} VALUES ('T2', 'Eve')"
+    )
     transducer_db.execute(
         f"INSERT INTO transducer.{tbl['employee']} VALUES ('T2', 'TEMP2')"
     )
     transducer_db.execute(
         f"INSERT INTO transducer.{tbl['employee_date']} VALUES ('TEMP2', 'TH2')"
     )
-    transducer_db.execute(
-        f"INSERT INTO transducer.{tbl['phone']} VALUES ('T2', 'TP2')"
-    )
-    transducer_db.execute(
-        f"INSERT INTO transducer.{tbl['email']} VALUES ('T2', 'TE2')"
-    )
+    transducer_db.execute(f"INSERT INTO transducer.{tbl['phone']} VALUES ('T2', 'TP2')")
+    transducer_db.execute(f"INSERT INTO transducer.{tbl['email']} VALUES ('T2', 'TE2')")
 
     source = transducer_db.execute(
         f"SELECT * FROM transducer.{schema_info.source_table}"
@@ -403,28 +426,27 @@ def test_target_to_source_full_employee(transducer_db, schema_info):
     tbl = schema_info.tables
     manager = _self_manager(schema_info, ssn="T3", empid="TEMP3")
     seed_target_loop(transducer_db, 8)
-    transducer_db.execute(f"INSERT INTO transducer.{tbl['person']} VALUES ('T3', 'Finn')")
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['person']} VALUES ('T3', 'Finn')"
+    )
     transducer_db.execute(
         f"INSERT INTO transducer.{tbl['employee']} VALUES ('T3', 'TEMP3')"
     )
     transducer_db.execute(
         f"INSERT INTO transducer.{tbl['employee_date']} VALUES ('TEMP3', 'TH3')"
     )
-    transducer_db.execute(
-        f"INSERT INTO transducer.{tbl['ped']} VALUES ('T3', 'TEMP3')"
-    )
-    transducer_db.execute(
-        f"INSERT INTO transducer.{tbl['dept_manager']} VALUES ('TD3', '{manager}')"
-    )
+    transducer_db.execute(f"INSERT INTO transducer.{tbl['ped']} VALUES ('T3', 'TEMP3')")
+    # PEDDept must precede DeptManager: the inc=_{dept, dept} equivalence is
+    # now enforced by a deferred trigger that checks at statement commit
+    # (per-statement transactions under autocommit).
     transducer_db.execute(
         f"INSERT INTO transducer.{tbl['ped_dept']} VALUES ('TEMP3', 'TD3')"
     )
     transducer_db.execute(
-        f"INSERT INTO transducer.{tbl['phone']} VALUES ('T3', 'TP3')"
+        f"INSERT INTO transducer.{tbl['dept_manager']} VALUES ('TD3', '{manager}')"
     )
-    transducer_db.execute(
-        f"INSERT INTO transducer.{tbl['email']} VALUES ('T3', 'TE3')"
-    )
+    transducer_db.execute(f"INSERT INTO transducer.{tbl['phone']} VALUES ('T3', 'TP3')")
+    transducer_db.execute(f"INSERT INTO transducer.{tbl['email']} VALUES ('T3', 'TE3')")
 
     source = transducer_db.execute(
         f"SELECT * FROM transducer.{schema_info.source_table}"
@@ -459,7 +481,9 @@ def test_target_on_conflict_dedupes(transducer_db, schema_info):
     same target row — true for example2's composite PK ``(ssn, phone, email)``.
     """
     if schema_info.example != "example2":
-        pytest.skip("example2-only: needs composite source PK to vary non-projected cols")
+        pytest.skip(
+            "example2-only: needs composite source PK to vary non-projected cols"
+        )
     insert_source(
         transducer_db, schema_info, ssn="S1", name="Ada", phone="P1", email="E1"
     )
@@ -514,13 +538,14 @@ def test_source_to_target_to_source_roundtrip(transducer_db, schema_info):
         f"INSERT INTO transducer.{tbl['ped']} VALUES (%s, %s)",
         (original["ssn"], original["empid"]),
     )
-    transducer_db.execute(
-        f"INSERT INTO transducer.{tbl['dept_manager']} VALUES (%s, %s)",
-        (original["dept"], original["manager"]),
-    )
+    # PEDDept before DeptManager — see note in test_target_to_source_full_employee.
     transducer_db.execute(
         f"INSERT INTO transducer.{tbl['ped_dept']} VALUES (%s, %s)",
         (original["empid"], original["dept"]),
+    )
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['dept_manager']} VALUES (%s, %s)",
+        (original["dept"], original["manager"]),
     )
     transducer_db.execute(
         f"INSERT INTO transducer.{tbl['phone']} VALUES (%s, %s)",
@@ -557,9 +582,7 @@ def test_level_upgrade_via_reinsert_blocked(transducer_db, schema_info):
     pre = target_state(transducer_db, schema_info)
     assert pre["employee"] == []  # L1 not populated yet
 
-    with pytest.raises(
-        (psycopg.errors.UniqueViolation, psycopg.errors.RaiseException)
-    ):
+    with pytest.raises((psycopg.errors.UniqueViolation, psycopg.errors.RaiseException)):
         insert_source(
             transducer_db,
             schema_info,
@@ -665,7 +688,9 @@ def test_wrong_loop_seed_leaves_source_empty(transducer_db, schema_info):
     tbl = schema_info.tables
     # Off-by-one: correct seed for 3 inserts would be 4; use 5 instead.
     transducer_db.execute("INSERT INTO transducer._loop VALUES (5)")
-    transducer_db.execute(f"INSERT INTO transducer.{tbl['person']} VALUES ('W1', 'Wyn')")
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['person']} VALUES ('W1', 'Wyn')"
+    )
     transducer_db.execute(f"INSERT INTO transducer.{tbl['phone']} VALUES ('W1', 'WP1')")
     transducer_db.execute(f"INSERT INTO transducer.{tbl['email']} VALUES ('W1', 'WE1')")
 

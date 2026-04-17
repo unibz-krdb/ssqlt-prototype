@@ -153,6 +153,26 @@ ALTER TABLE transducer._personphone ADD FOREIGN KEY (ssn) REFERENCES transducer.
 ALTER TABLE transducer._personemail ADD FOREIGN KEY (ssn) REFERENCES transducer._p (ssn);
 ALTER TABLE transducer._pe_hdate ADD FOREIGN KEY (empid) REFERENCES transducer._pe (empid);
 ALTER TABLE transducer._peddept ADD FOREIGN KEY (empid) REFERENCES transducer._ped (empid);
+CREATE OR REPLACE FUNCTION transducer.deptmanager_1_INC_INTER_CHECK()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.dept IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM transducer._peddept
+        WHERE dept = NEW.dept
+    ) THEN
+        RAISE EXCEPTION 'INC violation: %.% = % has no match in %.%',
+            TG_TABLE_NAME, 'dept', NEW.dept,
+            'peddept', 'dept';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE CONSTRAINT TRIGGER deptmanager_1_INC_INTER_CHECK
+AFTER INSERT ON transducer._deptmanager
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW EXECUTE FUNCTION transducer.deptmanager_1_INC_INTER_CHECK();
+
 ALTER TABLE transducer._pe ADD FOREIGN KEY (ssn) REFERENCES transducer._p (ssn);
 ALTER TABLE transducer._ped ADD FOREIGN KEY (empid) REFERENCES transducer._pe (empid);
 ALTER TABLE transducer._deptmanager ADD FOREIGN KEY (manager) REFERENCES transducer._p (ssn);

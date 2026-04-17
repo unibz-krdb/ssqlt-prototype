@@ -11,7 +11,7 @@ from pathlib import Path
 import jinja2
 
 from .constraints import UnsupportedError as UnsupportedError
-from .constraints import constraints, foreign_keys
+from .constraints import constraints, inter_table_inc
 from .context import Context, Direction
 from .guard import (
     GuardHierarchy,
@@ -79,7 +79,7 @@ class Generator:
             self._preamble(),
             self._base_tables(),
             self._reject_updates(),
-            self._foreign_keys(),
+            self._inter_table_inc(),
             self._constraints(),
             self._tracking(),
             self._join(),
@@ -154,8 +154,10 @@ class Generator:
         """Extract guard attributes from a target table's select clause."""
         return extract_table_guard_attrs(table)
 
-    def _foreign_keys(self) -> str:
-        return foreign_keys(self.ctx.source, self.ctx.target, self.schema)
+    def _inter_table_inc(self) -> str:
+        return inter_table_inc(
+            self.ctx.source, self.ctx.target, self._render, self.schema
+        )
 
     def _constraints(self) -> str:
         """Generate all constraint enforcement (MVDs, FDs/CFDs, INCs) for both contexts."""

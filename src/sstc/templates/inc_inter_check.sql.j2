@@ -1,0 +1,19 @@
+CREATE OR REPLACE FUNCTION {{ schema }}.{{ referencing_table }}_{{ idx }}_INC_INTER_CHECK()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.{{ referencing_col }} IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM {{ schema }}._{{ referenced_table }}
+        WHERE {{ referenced_col }} = NEW.{{ referencing_col }}
+    ) THEN
+        RAISE EXCEPTION 'INC violation: %.% = % has no match in %.%',
+            TG_TABLE_NAME, '{{ referencing_col }}', NEW.{{ referencing_col }},
+            '{{ referenced_table }}', '{{ referenced_col }}';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE CONSTRAINT TRIGGER {{ referencing_table }}_{{ idx }}_INC_INTER_CHECK
+AFTER INSERT ON {{ schema }}._{{ referencing_table }}
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW EXECUTE FUNCTION {{ schema }}.{{ referencing_table }}_{{ idx }}_INC_INTER_CHECK();

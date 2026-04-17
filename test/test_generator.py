@@ -36,10 +36,10 @@ def _assert_compile_structure(sql: str):
     assert create_count == 46, f"Expected 46 CREATE TABLE, got {create_count}"
 
     fn_count = sql.count("CREATE OR REPLACE FUNCTION")
-    assert fn_count == 55, f"Expected 55 functions, got {fn_count}"
+    assert fn_count == 56, f"Expected 56 functions, got {fn_count}"
 
-    trigger_count = sql.count("CREATE TRIGGER")
-    assert trigger_count == 69, f"Expected 69 triggers, got {trigger_count}"
+    trigger_count = sql.count("CREATE TRIGGER") + sql.count("CREATE CONSTRAINT TRIGGER")
+    assert trigger_count == 70, f"Expected 70 triggers, got {trigger_count}"
 
     assert "SOURCE_INSERT_FN" in sql
     assert "SOURCE_DELETE_FN" in sql
@@ -95,25 +95,39 @@ def test_reject_update_triggers_present(example_1_gen):
     assert "use DELETE + INSERT" in result
 
 
-def test_foreign_keys(example_1_gen):
-    result = example_1_gen._foreign_keys()
+def test_inter_table_inc_fks_and_triggers(example_1_gen):
+    result = example_1_gen._inter_table_inc()
 
-    # 4 from equivalences + 3 from subsumptions = 7
-    # (PEDDept->DeptManager skipped: dept is not PEDDept PK)
-    # (Person_Source self-ref skipped: empid is not Person_Source PK)
+    # One FK per INC when referenced cols match the referenced table's PK;
+    # otherwise a BEFORE INSERT trigger enforcing the inclusion.
+    # example1: 4 equivalences are PK-match (PersonPhone->Person, PersonEmail->Person,
+    # EmployeeDate->Employee, PEDDept->PED) + 3 inter-table subsumptions
+    # (Employee->Person, PED->Employee, DeptManager->Employee) = 7 FKs.
+    # The PEDDept->DeptManager equivalence references dept (not PEDDept.pk=empid);
+    # previously a silent skip, now a trigger.
     assert result.count("ADD FOREIGN KEY") == 7
+    # Each trigger emits 2 _INC_INTER_CHECK() mentions (fn def + EXECUTE FUNCTION).
+    assert result.count("_INC_INTER_CHECK()") == 2
+    assert result.count("CREATE CONSTRAINT TRIGGER") == 1
+    # Enforcement is deferred so the transducer's multi-statement mapping
+    # cascade can tolerate intermediate violations within a transaction.
+    assert "DEFERRABLE INITIALLY DEFERRED" in result
 
-    # Equivalence: PersonPhone.ssn -> Person.ssn
+    # Equivalence (PK-match): PersonPhone.ssn -> Person.ssn
     assert (
         "ALTER TABLE transducer._personphone ADD FOREIGN KEY (ssn) REFERENCES transducer._person (ssn);"
         in result
     )
-
     # Subsumption: DeptManager.manager -> Employee.empid
     assert (
         "ALTER TABLE transducer._deptmanager ADD FOREIGN KEY (manager) REFERENCES transducer._employee (empid);"
         in result
     )
+    # Trigger for previously-silent DeptManager->PEDDept equivalence direction
+    # (dept is PEDDept's attr but not its PK = empid).
+    assert "deptmanager_1_INC_INTER_CHECK" in result
+    assert "AFTER INSERT ON transducer._deptmanager" in result
+    assert "INC violation" in result
 
 
 def test_mvd_constraints(example_1_gen):
@@ -249,9 +263,15 @@ def test_full_compile_structure(example_1_gen):
 
     _assert_compile_structure(sql)
 
-    # Foreign keys: 4 from inc= + 3 from inc subsumption = 7
+    # Foreign keys: 4 from inc= (PK-match) + 3 from inc subsumption = 7.
+    # The fifth equivalence (PEDDept<->DeptManager on dept, not PEDDept PK)
+    # is enforced by a trigger instead of silently dropped.
     fk_count = sql.count("ADD FOREIGN KEY")
     assert fk_count == 7, f"Expected 7 foreign keys, got {fk_count}"
+    inc_trigger_count = sql.count("_INC_INTER_CHECK()")
+    assert inc_trigger_count == 2, (
+        f"Expected 2 _INC_INTER_CHECK() mentions, got {inc_trigger_count}"
+    )
 
 
 def test_example2_parses(example_2_ctx):

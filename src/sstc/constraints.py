@@ -36,24 +36,14 @@ def _find_table(name: str, context: Context) -> Table:
 
 
 def emit_fk(
-    inc, pks: dict[str, list[str]], *, equivalence: bool, schema: str
+    referencing_table: str,
+    referencing_cols: list[str],
+    referenced_table: str,
+    referenced_cols: list[str],
+    pks: dict[str, list[str]],
+    schema: str,
 ) -> str | None:
-    """Emit an ALTER TABLE ADD FOREIGN KEY statement from an inclusion dependency.
-
-    For equivalence INCs (inc=), the direction is swapped so the second
-    relation references the first. For subsumption INCs (inc-subset),
-    the first relation references the second. Returns None if the
-    referenced columns do not form the referenced table's primary key.
-    """
-    names = list(inc.relation_names)
-    attrs = list(inc.attributes)
-    mid = len(attrs) // 2
-    if equivalence:
-        referenced_table, referencing_table = names[0], names[1]
-        referenced_cols, referencing_cols = attrs[:mid], attrs[mid:]
-    else:
-        referencing_table, referenced_table = names[0], names[1]
-        referencing_cols, referenced_cols = attrs[:mid], attrs[mid:]
+    """Emit an ALTER TABLE ADD FOREIGN KEY, or None if referenced_cols isn't the PK."""
     ref_pk = pks.get(referenced_table, [])
     if sorted(referenced_cols) != sorted(ref_pk):
         return None
@@ -65,19 +55,96 @@ def emit_fk(
     )
 
 
-def foreign_keys(source: Context, target: Context, schema: str) -> str:
-    """Generate all foreign key constraints from inclusion dependencies."""
+def emit_inc_trigger(
+    referencing_table: str,
+    referencing_col: str,
+    referenced_table: str,
+    referenced_col: str,
+    *,
+    idx: int,
+    render: RenderFn,
+) -> str:
+    """Emit a BEFORE INSERT trigger enforcing an inter-table INC.
+
+    Scoped to single-column references; multi-column inter-table INC
+    enforcement is tracked as Tier 3 work in docs/notes/open-problems.md.
+    The schema prefix is injected by the Generator's render callback.
+    """
+    return render(
+        "inc_inter_check.sql.j2",
+        referencing_table=referencing_table,
+        referenced_table=referenced_table,
+        referencing_col=referencing_col,
+        referenced_col=referenced_col,
+        idx=idx,
+    )
+
+
+def _inc_direction(inc, *, equivalence: bool) -> tuple[str, list[str], str, list[str]]:
+    """Return (referencing_table, referencing_cols, referenced_table, referenced_cols).
+
+    Subsumption inc⊆_{a,b}(R1, R2) means R1.a ⊆ R2.b, so R1 references R2.
+    Equivalence inc=_{a,b}(R1, R2) holds in both directions, but we only
+    compile one direction (R2 references R1) so it composes with the
+    transducer's phased mapping cascade — the reverse direction is
+    maintained implicitly by the mapping functions. See
+    docs/notes/open-problems.md "Equivalence INC reverse direction".
+    """
+    names = list(inc.relation_names)
+    attrs = list(inc.attributes)
+    mid = len(attrs) // 2
+    if equivalence:
+        # Match the historical emit_fk convention: names[1] references names[0].
+        return (names[1], attrs[mid:], names[0], attrs[:mid])
+    return (names[0], attrs[:mid], names[1], attrs[mid:])
+
+
+def inter_table_inc(
+    source: Context, target: Context, render: RenderFn, schema: str
+) -> str:
+    """Generate inter-table inclusion enforcement: FK where possible, trigger otherwise.
+
+    For each INC, a native FK is emitted when the referenced columns equal
+    the referenced table's PK; otherwise a per-row BEFORE INSERT trigger
+    enforces the inclusion by subquery. Intra-table subsumptions are
+    handled by ``inc_sql``. Equivalence INCs are enforced in only one
+    direction at the compiled-SQL layer (see ``_inc_direction`` docstring).
+    """
     parts: list[str] = []
+    idx = 0
+
+    def emit_one(rfing, rfing_cols, rfed, rfed_cols, pks):
+        nonlocal idx
+        fk = emit_fk(rfing, rfing_cols, rfed, rfed_cols, pks, schema)
+        if fk:
+            parts.append(fk)
+            return
+        if len(rfing_cols) != 1 or len(rfed_cols) != 1:
+            raise UnsupportedError(
+                f"Multi-column inter-table INC not supported: "
+                f"{rfing}({rfing_cols}) -> {rfed}({rfed_cols})"
+            )
+        idx += 1
+        parts.append(
+            emit_inc_trigger(
+                rfing,
+                rfing_cols[0],
+                rfed,
+                rfed_cols[0],
+                idx=idx,
+                render=render,
+            )
+        )
+
     for context in [source, target]:
         pks = context.primary_keys
         for inc in context.inclusion_equivalences:
-            fk = emit_fk(inc, pks, equivalence=True, schema=schema)
-            if fk:
-                parts.append(fk)
+            emit_one(*_inc_direction(inc, equivalence=True), pks)
         for inc in context.inclusion_subsumptions:
-            fk = emit_fk(inc, pks, equivalence=False, schema=schema)
-            if fk:
-                parts.append(fk)
+            names = list(inc.relation_names)
+            if names[0] == names[1]:
+                continue  # Intra-table: handled by inc_sql in constraints()
+            emit_one(*_inc_direction(inc, equivalence=False), pks)
     return "\n".join(parts) if parts else ""
 
 
