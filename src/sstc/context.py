@@ -40,7 +40,16 @@ UNIVERSAL_MAPPING_NAME = "universalmapping"
 
 
 class Context:
-    """Generic base class for source and target contexts."""
+    """Generic base class for source and target contexts.
+
+    The ``universal_mapping`` attribute holds the parsed RA expression of
+    the reserved ``UniversalMapping`` assign node. Its presence is
+    validated by :meth:`from_file` (a missing definition raises) but its
+    RA expression is currently not consumed by the generator — downstream
+    code reads :attr:`Table.attributes` directly. See
+    ``docs/notes/open-problems.md`` ("universal_mapping parsed but
+    unread") and Tier 2 of ``docs/notes/THEORY-PARITY.md``.
+    """
 
     tables: list[Table]
     schema: Schema
@@ -103,6 +112,11 @@ class Context:
         relation assignments (Table definitions), dependency nodes (PK, FD,
         MVD, INC constraints), and a reserved UniversalMapping assignment.
         Tables are constructed by matching each relation to its dependencies.
+
+        A ``UniversalMapping`` assign node is required and raises if absent,
+        but its RA expression is not consumed downstream in the current
+        compilation pipeline. See ``docs/notes/open-problems.md``
+        ("universal_mapping parsed but unread").
         """
         universal_attributes = []
         schema = {"Universal": []}

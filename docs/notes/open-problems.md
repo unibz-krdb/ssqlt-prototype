@@ -56,9 +56,21 @@ PostgreSQL does not allow creating a foreign key that references a subset of a c
 
 This matters for the compiler because inclusion dependencies between tables frequently involve attributes that are part of a composite primary key in the referenced table. The compiler cannot rely on native PostgreSQL REFERENCES constraints for these cases and must instead generate custom trigger functions that enforce the inclusion dependency manually, similar to how other constraint types are already handled.
 
-Current status: the problem is identified and the workaround (custom inclusion dependency triggers) is known, but these triggers have not been implemented.
+Resolved (Tier 1, 2026-04-17) for the single-column case: `constraints.inter_table_inc` now emits an `AFTER INSERT DEFERRABLE INITIALLY DEFERRED` constraint trigger (`templates/inc_inter_check.sql.j2`) whenever `emit_fk` cannot be used. Multi-column inter-table INCs still raise `UnsupportedError` and are deferred to Tier 3.
 
 Source: `notes/output.sql` lines 24-31
+
+## `universal_mapping` parsed but unread
+
+**Severity:** Correctness
+
+The reserved `UniversalMapping` AssignNode in each context is parsed and its presence validated (`src/sstc/context.py:137`), but its RA expression is never inspected by the `Generator`. Downstream code reads `Table.attributes` directly from the constituent `AssignNode` objects instead.
+
+This matters because input writers are required to provide a `UniversalMapping` definition that has no observable effect on the compiled SQL. The field is either dead weight that should be removed from the input format, or it encodes structural information (most likely the join tree) that needs to be consumed — in which case the Tier 2 join-ordering algorithm would be the consumer.
+
+Current status: documented as a gap. Expected to be resolved by Tier 2 (automatic NATURAL JOIN ordering) through consumption of the RA expression.
+
+Source: `src/sstc/context.py:128-138`, `docs/notes/THEORY-PARITY.md` operational parity table
 
 ## Tuple containment in target-to-source mapping with NULLs
 
@@ -115,9 +127,15 @@ Inclusion dependencies generalize foreign keys: they state that the set of value
 
 The compiler needs to support inclusion dependencies because they appear in the relational algebra constraint declarations (as `inc=` and `inc⊆` operators in RAPT2). Without trigger functions to enforce them, the generated database would silently allow violations of these constraints. The implementation should follow the same pattern as other constraint triggers: a BEFORE INSERT check that raises an exception if the inclusion is violated.
 
-Current status: a working implementation exists for the intra-table case in `docs/notes/example/1_source.sql` (`check_PERSON_IND_FN_1`), which enforces `manager ⊆ ssn` within the same table using a BEFORE INSERT trigger. The function handles NULLs (allowing NULL manager) and self-reference (allowing `manager = ssn`). The RAPT2 parser already recognizes inclusion dependency nodes, but the compiler does not yet generate these enforcement triggers automatically. The inter-table case (INC across different tables) has not been implemented.
+Resolved (Tier 1, 2026-04-17) for single-column INCs:
 
-Source: `notes/constraint_definition.sql` lines 436-444, `docs/notes/example/1_source.sql` lines 71-93
+- Intra-table: `constraints.inc_sql` emits `inc_check.sql.j2` (BEFORE INSERT trigger matching the `check_PERSON_IND_FN_1` pattern, handling NULLs and self-reference).
+- Inter-table (refs = PK): native FK via `constraints.emit_fk`.
+- Inter-table (refs ≠ PK): `AFTER INSERT DEFERRABLE INITIALLY DEFERRED` constraint trigger via `constraints.emit_inc_trigger` and `inc_inter_check.sql.j2`.
+
+Multi-column INCs (both intra- and inter-table) still raise `UnsupportedError` and are deferred to Tier 3. Equivalence INCs (`inc=`) are enforced in only one compiled direction — the reverse direction is maintained implicitly by the mapping cascade; see the docstring on `constraints._inc_direction`.
+
+Source: `notes/constraint_definition.sql` lines 436-444, `docs/notes/example/1_source.sql` lines 71-93, `src/sstc/constraints.py`
 
 ## `_LOOP` pre-seeding leaks compiler contract to client
 
