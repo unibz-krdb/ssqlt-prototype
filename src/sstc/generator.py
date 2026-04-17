@@ -55,6 +55,11 @@ class Generator:
     def _universal_schema(self) -> list:
         return self.ctx.source.universal_schema
 
+    def _ordered_tables(self, context: Context) -> list[Table]:
+        """Return context.tables in UniversalMapping join order."""
+        by_name = {t.name: t for t in context.tables}
+        return [by_name[name] for name in context.universal_mapping_join_order]
+
     def _universal_columns(self) -> list[dict]:
         return [
             {"name": a.name, "data_type": a.data_type} for a in self._universal_schema
@@ -242,12 +247,11 @@ class Generator:
                 else TARGET_LOOP_VALUE
             )
 
-            all_tables_info = [
-                {"name": t.name, "attrs": t.attributes} for t in context.tables
-            ]
+            ordered = self._ordered_tables(context)
+            all_tables_info = [{"name": t.name, "attrs": t.attributes} for t in ordered]
 
-            for table in context.tables:
-                other_tables = [t.name for t in context.tables if t.name != table.name]
+            for table in ordered:
+                other_tables = [t.name for t in ordered if t.name != table.name]
 
                 for suffix in ["INSERT", "DELETE"]:
                     # JOIN staging table (empty clone of base table)
@@ -321,8 +325,10 @@ class Generator:
         universal_columns = self._universal_columns()
         universal_col_names = self._universal_col_names()
 
-        src_table_names = [t.name for t in source.tables]
-        tgt_table_names = [t.name for t in target.tables]
+        ordered_source = self._ordered_tables(source)
+        ordered_target = self._ordered_tables(target)
+        src_table_names = [t.name for t in ordered_source]
+        tgt_table_names = [t.name for t in ordered_target]
 
         src_tables_info = [
             {
@@ -330,7 +336,7 @@ class Generator:
                 "attrs": t.attributes,
                 "pk": source.primary_keys.get(t.name, []),
             }
-            for t in source.tables
+            for t in ordered_source
         ]
         tgt_tables_info = [
             {
@@ -341,7 +347,7 @@ class Generator:
                     f"{a} IS NOT NULL" for a in extract_table_guard_attrs(t)
                 ),
             }
-            for t in target.tables
+            for t in ordered_target
         ]
 
         hierarchy = self._build_guard_hierarchy()
@@ -455,8 +461,10 @@ class Generator:
     def _build_source_delete_checks(self, source: Context, target: Context) -> dict:
         """Build independence checks for source->target DELETE mapping."""
         mvds = source.multivalued_dependencies
-        src_table = source.tables[0]
-        src_table_names = [t.name for t in source.tables]
+        ordered_source = self._ordered_tables(source)
+        ordered_target = self._ordered_tables(target)
+        src_table = ordered_source[0]
+        src_table_names = [t.name for t in ordered_source]
         src_name = src_table.name
         all_attrs = src_table.attributes
         pk = source.primary_keys.get(src_name, [])
@@ -468,7 +476,7 @@ class Generator:
 
             # Find target table whose attrs contain the MVD determined attr + LHS
             target_table = None
-            for t in target.tables:
+            for t in ordered_target:
                 if det_attr in t.attributes and all(
                     a in t.attributes for a in lhs_attrs
                 ):
@@ -503,7 +511,7 @@ class Generator:
         )
 
         full_deletes = []
-        for t in target.tables:
+        for t in ordered_target:
             t_pk = target.primary_keys.get(t.name, [])
             cond = " AND ".join(
                 f"{a} = NEW.{a}" for a in (t_pk if t_pk else t.attributes)
@@ -527,7 +535,8 @@ class Generator:
         a universal tuple leaves other source tuples that still require
         the same data.
         """
-        src_names = [t.name for t in source.tables]
+        ordered_source = self._ordered_tables(source)
+        src_names = [t.name for t in ordered_source]
         join_source = "SELECT * FROM " + " NATURAL LEFT OUTER JOIN ".join(
             f"{self.schema}._{n}" for n in src_names
         )
@@ -540,8 +549,8 @@ class Generator:
                 return f"r1.{a} IS NOT DISTINCT FROM temp_table_join.{a}"
             return f"r1.{a} = temp_table_join.{a}"
 
-        if len(source.tables) == 1:
-            src = source.tables[0]
+        if len(ordered_source) == 1:
+            src = ordered_source[0]
             src_pk = source.primary_keys.get(src.name, [])
             join_cond = " AND ".join(_eq(a) for a in src.attributes)
             return [
@@ -556,10 +565,10 @@ class Generator:
             ]
 
         # Multi-source: main table always deleted, dependent tables conditionally
-        main = source.tables[0]
+        main = ordered_source[0]
         main_pk = source.primary_keys.get(main.name, [])
         checks = []
-        for dep in source.tables[1:]:
+        for dep in ordered_source[1:]:
             dep_pk = source.primary_keys.get(dep.name, [])
             join_cond = " AND ".join(_eq(a) for a in dep.attributes)
             checks.append(

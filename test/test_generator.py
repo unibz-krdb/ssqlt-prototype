@@ -204,6 +204,30 @@ def test_join_layer(example_1_gen):
     assert "CREATE TEMPORARY TABLE" in result
 
 
+def test_join_function_uses_universal_mapping_order(example_1_gen):
+    """Target's per-table join functions list tables in UniversalMapping order."""
+    result = example_1_gen.compile()
+    start = result.index("FUNCTION transducer.target_person_INSERT_JOIN_fn()")
+    end = result.index("$$;", start)
+    body = result[start:end]
+    expected_sequence = [
+        "_personphone",
+        "_personemail",
+        "_employee",
+        "_employeedate",
+        "_ped",
+        "_peddept",
+        "_deptmanager",
+    ]
+    cursor = 0
+    for table in expected_sequence:
+        idx = body.find(table, cursor)
+        assert idx != -1, (
+            f"Expected {table} after position {cursor} in order; not found"
+        )
+        cursor = idx
+
+
 def test_source_insert_mapping(example_1_gen):
     result = example_1_gen._mapping()
 
