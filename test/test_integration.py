@@ -1,15 +1,35 @@
-"""Integration tests: compile example1, install on Postgres, verify propagation."""
+"""Integration tests: compile each example, install on Postgres, verify propagation.
+
+Tests using ``transducer_db`` / ``schema_info`` run once per parametrized example
+(see ``compiled_example`` in ``test/conftest.py``). Constraint-violation tests
+remain example1-specific via an inline skip.
+"""
 
 import psycopg.errors
 import pytest
 
+from test.helpers import (
+    SOURCE_COLUMNS,
+    insert_source,
+    seed_target_loop,
+    target_state,
+    truncate_all,
+)
+
 pytestmark = pytest.mark.integration
+
+
+# example1's source INC is manager ⊆ empid (self-ref by empid).
+# example2's source INC is manager ⊆ ssn (self-ref by ssn).
+# Likewise on the target side for _deptmanager.manager.
+def _self_manager(schema_info, *, ssn: str, empid: str) -> str:
+    return empid if schema_info.example == "example1" else ssn
 
 
 # --- Smoke test ---
 
 
-def test_schema_installs(transducer_db):
+def test_schema_installs(transducer_db, schema_info):
     """Compiled SQL installs without error; all expected tables exist."""
     rows = transducer_db.execute(
         """
@@ -19,406 +39,618 @@ def test_schema_installs(transducer_db):
     ).fetchall()
     tables = {r[0] for r in rows}
 
-    expected_base = {
-        "_loop",
-        "_person_source",
-        "_person",
-        "_personphone",
-        "_personemail",
-        "_employee",
-        "_employeedate",
-        "_ped",
-        "_peddept",
-        "_deptmanager",
-    }
+    expected_base = {"_loop", schema_info.source_table} | set(
+        schema_info.tables.values()
+    )
     assert expected_base.issubset(tables), f"Missing: {expected_base - tables}"
-    # 10 base + 18 tracking (_INSERT/_DELETE) + 18 join (_INSERT_JOIN/_DELETE_JOIN)
+    # 9 base (non-_loop) × {base, _INSERT, _DELETE, _INSERT_JOIN, _DELETE_JOIN} + _loop
     assert len(tables) == 46
 
 
 # --- Source-to-target propagation ---
 
 
-def test_simple_person_propagates(transducer_db):
+def test_simple_person_propagates(transducer_db, schema_info):
     """Level 0: person with only ssn/name/phone/email (no employee info)."""
-    transducer_db.execute(
-        """
-        INSERT INTO transducer._person_source
-            (ssn, empid, name, hdate, phone, email, dept, manager)
-        VALUES ('S1', NULL, 'Alice', NULL, 'P1', 'E1', NULL, NULL)
-        """
+    insert_source(
+        transducer_db, schema_info, ssn="S1", name="Alice", phone="P1", email="E1"
     )
+    state = target_state(transducer_db, schema_info)
 
-    # Level 0 targets populated
-    assert transducer_db.execute("SELECT * FROM transducer._person").fetchall() == [
-        ("S1", "Alice")
-    ]
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._personphone"
-    ).fetchall() == [("S1", "P1")]
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._personemail"
-    ).fetchall() == [("S1", "E1")]
+    assert state["person"] == [("S1", "Alice")]
+    assert state["phone"] == [("S1", "P1")]
+    assert state["email"] == [("S1", "E1")]
+    assert state["employee"] == []
+    assert state["employee_date"] == []
+    assert state["ped"] == []
+    assert state["ped_dept"] == []
+    assert state["dept_manager"] == []
 
-    # Level 1 + 2 targets empty
-    assert transducer_db.execute("SELECT * FROM transducer._employee").fetchall() == []
-    assert (
-        transducer_db.execute("SELECT * FROM transducer._employeedate").fetchall() == []
-    )
-    assert transducer_db.execute("SELECT * FROM transducer._ped").fetchall() == []
-    assert transducer_db.execute("SELECT * FROM transducer._peddept").fetchall() == []
-    assert (
-        transducer_db.execute("SELECT * FROM transducer._deptmanager").fetchall() == []
-    )
-
-    # Tracking tables cleaned up
     assert (
         transducer_db.execute(
-            "SELECT * FROM transducer._person_source_insert"
-        ).fetchall()
-        == []
-    )
-    assert (
-        transducer_db.execute(
-            "SELECT * FROM transducer._person_source_insert_join"
+            f"SELECT * FROM transducer.{schema_info.source_table}_insert"
         ).fetchall()
         == []
     )
     assert transducer_db.execute("SELECT * FROM transducer._loop").fetchall() == []
 
 
-def test_employee_propagates(transducer_db):
+def test_employee_propagates(transducer_db, schema_info):
     """Level 1: employee with empid+hdate, no department."""
-    transducer_db.execute(
-        """
-        INSERT INTO transducer._person_source
-            (ssn, empid, name, hdate, phone, email, dept, manager)
-        VALUES ('S2', 'EMP2', 'Bob', 'H2', 'P2', 'E2', NULL, NULL)
-        """
+    insert_source(
+        transducer_db,
+        schema_info,
+        ssn="S2",
+        empid="EMP2",
+        name="Bob",
+        hdate="H2",
+        phone="P2",
+        email="E2",
     )
+    state = target_state(transducer_db, schema_info)
 
-    # Level 0
-    assert transducer_db.execute("SELECT * FROM transducer._person").fetchall() == [
-        ("S2", "Bob")
-    ]
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._personphone"
-    ).fetchall() == [("S2", "P2")]
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._personemail"
-    ).fetchall() == [("S2", "E2")]
-
-    # Level 1
-    assert transducer_db.execute("SELECT * FROM transducer._employee").fetchall() == [
-        ("S2", "EMP2")
-    ]
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._employeedate"
-    ).fetchall() == [("EMP2", "H2")]
-
-    # Level 2 empty
-    assert transducer_db.execute("SELECT * FROM transducer._ped").fetchall() == []
-    assert transducer_db.execute("SELECT * FROM transducer._peddept").fetchall() == []
-    assert (
-        transducer_db.execute("SELECT * FROM transducer._deptmanager").fetchall() == []
-    )
+    assert state["person"] == [("S2", "Bob")]
+    assert state["phone"] == [("S2", "P2")]
+    assert state["email"] == [("S2", "E2")]
+    assert state["employee"] == [("S2", "EMP2")]
+    assert state["employee_date"] == [("EMP2", "H2")]
+    assert state["ped"] == []
+    assert state["ped_dept"] == []
+    assert state["dept_manager"] == []
 
 
-def test_full_employee_with_dept_propagates(transducer_db):
+def test_full_employee_with_dept_propagates(transducer_db, schema_info):
     """Level 2: full tuple, all 8 target tables populated.
 
-    manager=empid (self-managing) satisfies the INC constraint
-    inc⊆_{manager, empid}, and the FK _deptmanager(manager) → _employee(empid).
+    Self-managing row satisfies the source INC and the target
+    ``_deptmanager(manager)`` → person-table(PK) FK.
     """
-    transducer_db.execute(
-        """
-        INSERT INTO transducer._person_source
-            (ssn, empid, name, hdate, phone, email, dept, manager)
-        VALUES ('S3', 'EMP3', 'Carol', 'H3', 'P3', 'E3', 'D3', 'EMP3')
-        """
+    manager = _self_manager(schema_info, ssn="S3", empid="EMP3")
+    insert_source(
+        transducer_db,
+        schema_info,
+        ssn="S3",
+        empid="EMP3",
+        name="Carol",
+        hdate="H3",
+        phone="P3",
+        email="E3",
+        dept="D3",
+        manager=manager,
     )
+    state = target_state(transducer_db, schema_info)
 
-    # Level 0
-    assert transducer_db.execute("SELECT * FROM transducer._person").fetchall() == [
-        ("S3", "Carol")
-    ]
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._personphone"
-    ).fetchall() == [("S3", "P3")]
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._personemail"
-    ).fetchall() == [("S3", "E3")]
-
-    # Level 1
-    assert transducer_db.execute("SELECT * FROM transducer._employee").fetchall() == [
-        ("S3", "EMP3")
-    ]
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._employeedate"
-    ).fetchall() == [("EMP3", "H3")]
-
-    # Level 2
-    assert transducer_db.execute("SELECT * FROM transducer._ped").fetchall() == [
-        ("S3", "EMP3")
-    ]
-    assert transducer_db.execute("SELECT * FROM transducer._peddept").fetchall() == [
-        ("EMP3", "D3")
-    ]
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._deptmanager"
-    ).fetchall() == [("D3", "EMP3")]
+    assert state["person"] == [("S3", "Carol")]
+    assert state["phone"] == [("S3", "P3")]
+    assert state["email"] == [("S3", "E3")]
+    assert state["employee"] == [("S3", "EMP3")]
+    assert state["employee_date"] == [("EMP3", "H3")]
+    assert state["ped"] == [("S3", "EMP3")]
+    assert state["ped_dept"] == [("EMP3", "D3")]
+    assert state["dept_manager"] == [("D3", manager)]
 
 
-def test_multiple_persons_propagate(transducer_db):
+def test_multiple_persons_propagate(transducer_db, schema_info):
     """Three inserts at different guard levels; verify independent propagation."""
     # Level 0 only
-    transducer_db.execute(
-        """
-        INSERT INTO transducer._person_source VALUES
-            ('S10', NULL, 'Xena', NULL, 'P10', 'E10', NULL, NULL)
-        """
+    insert_source(
+        transducer_db, schema_info, ssn="S10", name="Xena", phone="P10", email="E10"
     )
     # Level 0 + 1
-    transducer_db.execute(
-        """
-        INSERT INTO transducer._person_source VALUES
-            ('S20', 'EMP20', 'Yara', 'H20', 'P20', 'E20', NULL, NULL)
-        """
+    insert_source(
+        transducer_db,
+        schema_info,
+        ssn="S20",
+        empid="EMP20",
+        name="Yara",
+        hdate="H20",
+        phone="P20",
+        email="E20",
     )
-    # Level 0 + 1 + 2 (manager = EMP20, an existing empid, for INC)
-    transducer_db.execute(
-        """
-        INSERT INTO transducer._person_source VALUES
-            ('S30', 'EMP30', 'Zara', 'H30', 'P30', 'E30', 'D30', 'EMP20')
-        """
-    )
-
-    # _person: 3 rows
-    person = transducer_db.execute(
-        "SELECT * FROM transducer._person ORDER BY ssn"
-    ).fetchall()
-    assert len(person) == 3
-    assert {r[0] for r in person} == {"S10", "S20", "S30"}
-
-    # _personphone / _personemail: 3 each
-    assert (
-        len(transducer_db.execute("SELECT * FROM transducer._personphone").fetchall())
-        == 3
-    )
-    assert (
-        len(transducer_db.execute("SELECT * FROM transducer._personemail").fetchall())
-        == 3
+    # Level 0 + 1 + 2; manager references S20/EMP20 (an existing row) to satisfy INC
+    manager = _self_manager(schema_info, ssn="S20", empid="EMP20")
+    insert_source(
+        transducer_db,
+        schema_info,
+        ssn="S30",
+        empid="EMP30",
+        name="Zara",
+        hdate="H30",
+        phone="P30",
+        email="E30",
+        dept="D30",
+        manager=manager,
     )
 
-    # _employee: 2 (S20, S30)
-    employee = transducer_db.execute(
-        "SELECT * FROM transducer._employee ORDER BY empid"
-    ).fetchall()
+    state = target_state(transducer_db, schema_info)
+
+    assert len(state["person"]) == 3
+    assert {r[0] for r in state["person"]} == {"S10", "S20", "S30"}
+    assert len(state["phone"]) == 3
+    assert len(state["email"]) == 3
+
+    employee = sorted(state["employee"], key=lambda r: r[1])
     assert len(employee) == 2
     assert {r[1] for r in employee} == {"EMP20", "EMP30"}
+    assert len(state["employee_date"]) == 2
 
-    # _employeedate: 2
-    assert (
-        len(transducer_db.execute("SELECT * FROM transducer._employeedate").fetchall())
-        == 2
-    )
+    assert state["ped"] == [("S30", "EMP30")]
+    assert state["ped_dept"] == [("EMP30", "D30")]
+    assert state["dept_manager"] == [("D30", manager)]
 
-    # _ped / _peddept / _deptmanager: 1 each (S30 only)
-    assert transducer_db.execute("SELECT * FROM transducer._ped").fetchall() == [
-        ("S30", "EMP30")
-    ]
-    assert transducer_db.execute("SELECT * FROM transducer._peddept").fetchall() == [
-        ("EMP30", "D30")
-    ]
-    assert transducer_db.execute(
-        "SELECT * FROM transducer._deptmanager"
-    ).fetchall() == [("D30", "EMP20")]
-
-    # Tracking fully cleaned
     assert transducer_db.execute("SELECT * FROM transducer._loop").fetchall() == []
 
 
 # --- Constraint enforcement (Phase D) ---
+# These tests exercise example1's specific CFD/INC/MVD semantics. Example2
+# declares similar constraints but its composite PK and mandatory columns
+# make the failure modes sufficiently different that we treat those as
+# separate new tests rather than parametrizing these.
 
 
-def test_cfd_empid_hdate_violation(transducer_db):
+def test_cfd_empid_hdate_violation(transducer_db, schema_info):
     """CFD empid→hdate: empid non-null with hdate null rejected (guard incoherence).
 
-    NOTE: CFD triggers compare NEW against existing rows via cross join, so they
-    require at least one row in _person_source to fire.  The guard hierarchy still
-    prevents incorrect propagation for the very first insert.
+    CFD triggers compare NEW against existing rows via cross join, so they
+    require at least one row in the source table to fire.
     """
-    transducer_db.execute(
-        """
-        INSERT INTO transducer._person_source
-            (ssn, empid, name, hdate, phone, email, dept, manager)
-        VALUES ('V0', NULL, 'Seed', NULL, 'P0', 'E0', NULL, NULL)
-        """
+    if schema_info.example != "example1":
+        pytest.skip("example1-only constraint test")
+    insert_source(
+        transducer_db, schema_info, ssn="V0", name="Seed", phone="P0", email="E0"
     )
     with pytest.raises(
         psycopg.errors.RaiseException, match="CFD violation.*empid -> hdate"
     ):
-        transducer_db.execute(
-            """
-            INSERT INTO transducer._person_source
-                (ssn, empid, name, hdate, phone, email, dept, manager)
-            VALUES ('V1', 'EMP_V1', 'Vicky', NULL, 'PV1', 'EV1', NULL, NULL)
-            """
+        insert_source(
+            transducer_db,
+            schema_info,
+            ssn="V1",
+            empid="EMP_V1",
+            name="Vicky",
+            phone="PV1",
+            email="EV1",
         )
 
 
-def test_cfd_empid_dept_cross_level_violation(transducer_db):
+def test_cfd_empid_dept_cross_level_violation(transducer_db, schema_info):
     """CFD empid→dept: dept non-null without empid rejected (cross-level coherence)."""
-    transducer_db.execute(
-        """
-        INSERT INTO transducer._person_source
-            (ssn, empid, name, hdate, phone, email, dept, manager)
-        VALUES ('V0', NULL, 'Seed', NULL, 'P0', 'E0', NULL, NULL)
-        """
+    if schema_info.example != "example1":
+        pytest.skip("example1-only constraint test")
+    insert_source(
+        transducer_db, schema_info, ssn="V0", name="Seed", phone="P0", email="E0"
     )
     with pytest.raises(
         psycopg.errors.RaiseException, match="CFD violation.*empid -> dept"
     ):
-        transducer_db.execute(
-            """
-            INSERT INTO transducer._person_source
-                (ssn, empid, name, hdate, phone, email, dept, manager)
-            VALUES ('V2', NULL, 'Wade', NULL, 'PV2', 'EV2', 'DV2', NULL)
-            """
+        insert_source(
+            transducer_db,
+            schema_info,
+            ssn="V2",
+            name="Wade",
+            phone="PV2",
+            email="EV2",
+            dept="DV2",
         )
 
 
-def test_cfd_dept_manager_violation(transducer_db):
+def test_cfd_dept_manager_violation(transducer_db, schema_info):
     """CFD dept→manager: same dept with different managers rejected (FD conflict)."""
+    if schema_info.example != "example1":
+        pytest.skip("example1-only constraint test")
     # First employee: self-managing, dept=DEPTX
-    transducer_db.execute(
-        """
-        INSERT INTO transducer._person_source
-            (ssn, empid, name, hdate, phone, email, dept, manager)
-        VALUES ('VA', 'EMPA', 'Amy', 'HA', 'PA', 'EA', 'DEPTX', 'EMPA')
-        """
+    insert_source(
+        transducer_db,
+        schema_info,
+        ssn="VA",
+        empid="EMPA",
+        name="Amy",
+        hdate="HA",
+        phone="PA",
+        email="EA",
+        dept="DEPTX",
+        manager="EMPA",
     )
-    # Second employee: no dept (needed so EMPB exists as empid for INC)
-    transducer_db.execute(
-        """
-        INSERT INTO transducer._person_source
-            (ssn, empid, name, hdate, phone, email, dept, manager)
-        VALUES ('VB', 'EMPB', 'Ben', 'HB', 'PB', 'EB', NULL, NULL)
-        """
+    # Second: no dept (needed so EMPB exists as empid for INC)
+    insert_source(
+        transducer_db,
+        schema_info,
+        ssn="VB",
+        empid="EMPB",
+        name="Ben",
+        hdate="HB",
+        phone="PB",
+        email="EB",
     )
-    # Third: same dept=DEPTX but manager=EMPB (conflicts with EMPA for DEPTX)
+    # Third: same dept=DEPTX but manager=EMPB conflicts with EMPA for DEPTX
     with pytest.raises(
         psycopg.errors.RaiseException, match="CFD violation.*dept -> manager"
     ):
-        transducer_db.execute(
-            """
-            INSERT INTO transducer._person_source
-                (ssn, empid, name, hdate, phone, email, dept, manager)
-            VALUES ('VC', 'EMPC', 'Cal', 'HC', 'PC', 'EC', 'DEPTX', 'EMPB')
-            """
+        insert_source(
+            transducer_db,
+            schema_info,
+            ssn="VC",
+            empid="EMPC",
+            name="Cal",
+            hdate="HC",
+            phone="PC",
+            email="EC",
+            dept="DEPTX",
+            manager="EMPB",
         )
 
 
-def test_inc_violation(transducer_db):
+def test_inc_violation(transducer_db, schema_info):
     """INC manager⊆empid: manager referencing non-existent empid rejected."""
-    # Need at least one existing row so the INC SELECT returns something
-    transducer_db.execute(
-        """
-        INSERT INTO transducer._person_source
-            (ssn, empid, name, hdate, phone, email, dept, manager)
-        VALUES ('VA', NULL, 'Amy', NULL, 'PA', 'EA', NULL, NULL)
-        """
+    if schema_info.example != "example1":
+        pytest.skip("example1-only constraint test")
+    insert_source(
+        transducer_db, schema_info, ssn="VA", name="Amy", phone="PA", email="EA"
     )
     with pytest.raises(psycopg.errors.RaiseException, match="INC violation"):
-        transducer_db.execute(
-            """
-            INSERT INTO transducer._person_source
-                (ssn, empid, name, hdate, phone, email, dept, manager)
-            VALUES ('VB', 'EMPB', 'Ben', 'HB', 'PB', 'EB', 'DB', 'GHOST')
-            """
+        insert_source(
+            transducer_db,
+            schema_info,
+            ssn="VB",
+            empid="EMPB",
+            name="Ben",
+            hdate="HB",
+            phone="PB",
+            email="EB",
+            dept="DB",
+            manager="GHOST",
         )
 
 
-def test_mvd_violation(transducer_db):
+def test_mvd_violation(transducer_db, schema_info):
     """MVD {ssn}→→{phone}: inconsistent non-MVD attrs for same ssn rejected."""
-    transducer_db.execute(
-        """
-        INSERT INTO transducer._person_source
-            (ssn, empid, name, hdate, phone, email, dept, manager)
-        VALUES ('VM', NULL, 'Mary', NULL, 'PM1', 'EM1', NULL, NULL)
-        """
+    if schema_info.example != "example1":
+        pytest.skip("example1-only constraint test")
+    insert_source(
+        transducer_db, schema_info, ssn="VM", name="Mary", phone="PM1", email="EM1"
     )
     # Same ssn, different name → cross-product tuple doesn't exist → violation
     with pytest.raises(psycopg.errors.RaiseException, match="MVD constraint violation"):
-        transducer_db.execute(
-            """
-            INSERT INTO transducer._person_source
-                (ssn, empid, name, hdate, phone, email, dept, manager)
-            VALUES ('VM', NULL, 'Nora', NULL, 'PM2', 'EM2', NULL, NULL)
-            """
+        insert_source(
+            transducer_db,
+            schema_info,
+            ssn="VM",
+            name="Nora",
+            phone="PM2",
+            email="EM2",
         )
 
 
 # --- Target-to-source propagation (Phase C) ---
 #
-# Protocol: INSERT a seed into _loop with value = 1 + N where N is the number
-# of target table inserts that follow.  Each target insert's join function adds
-# -1 to _loop; when count reaches ABS(seed), TARGET_INSERT_FN fires and
-# reconstructs the universal tuple into _person_source.
+# Protocol: seed ``_loop`` with 1 + N where N is the number of target inserts.
+# Each target join-fn decrements by one (via -1); on reaching ABS(seed),
+# TARGET_INSERT_FN fires and reconstructs the universal tuple into the
+# source table.
 
 
-def test_target_to_source_simple_person(transducer_db):
-    """Insert a Level 0 person via target tables; verify _person_source populated."""
-    # 3 target inserts → seed = 4
-    transducer_db.execute("INSERT INTO transducer._loop VALUES (4)")
-    transducer_db.execute("INSERT INTO transducer._person VALUES ('T1', 'Dana')")
-    transducer_db.execute("INSERT INTO transducer._personphone VALUES ('T1', 'TP1')")
-    transducer_db.execute("INSERT INTO transducer._personemail VALUES ('T1', 'TE1')")
+def test_target_to_source_simple_person(transducer_db, schema_info):
+    """Insert a Level 0 person via target tables; verify source populated."""
+    tbl = schema_info.tables
+    seed_target_loop(transducer_db, 3)
+    transducer_db.execute(f"INSERT INTO transducer.{tbl['person']} VALUES ('T1', 'Dana')")
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['phone']} VALUES ('T1', 'TP1')"
+    )
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['email']} VALUES ('T1', 'TE1')"
+    )
 
-    source = transducer_db.execute("SELECT * FROM transducer._person_source").fetchall()
-    assert len(source) == 1, f"Expected 1 row in _person_source, got {len(source)}"
+    source = transducer_db.execute(
+        f"SELECT * FROM transducer.{schema_info.source_table}"
+    ).fetchall()
+    assert len(source) == 1, f"Expected 1 row in source, got {len(source)}"
     assert source[0] == ("T1", None, "Dana", None, "TP1", "TE1", None, None)
 
-    # Tracking cleaned up
     assert transducer_db.execute("SELECT * FROM transducer._loop").fetchall() == []
 
 
-def test_target_to_source_employee(transducer_db):
-    """Insert a Level 1 employee via target tables; verify _person_source populated."""
-    # 5 target inserts → seed = 6
-    transducer_db.execute("INSERT INTO transducer._loop VALUES (6)")
-    transducer_db.execute("INSERT INTO transducer._person VALUES ('T2', 'Eve')")
-    transducer_db.execute("INSERT INTO transducer._employee VALUES ('T2', 'TEMP2')")
+def test_target_to_source_employee(transducer_db, schema_info):
+    """Insert a Level 1 employee via target tables; verify source populated."""
+    tbl = schema_info.tables
+    seed_target_loop(transducer_db, 5)
+    transducer_db.execute(f"INSERT INTO transducer.{tbl['person']} VALUES ('T2', 'Eve')")
     transducer_db.execute(
-        "INSERT INTO transducer._employeedate VALUES ('TEMP2', 'TH2')"
+        f"INSERT INTO transducer.{tbl['employee']} VALUES ('T2', 'TEMP2')"
     )
-    transducer_db.execute("INSERT INTO transducer._personphone VALUES ('T2', 'TP2')")
-    transducer_db.execute("INSERT INTO transducer._personemail VALUES ('T2', 'TE2')")
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['employee_date']} VALUES ('TEMP2', 'TH2')"
+    )
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['phone']} VALUES ('T2', 'TP2')"
+    )
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['email']} VALUES ('T2', 'TE2')"
+    )
 
-    source = transducer_db.execute("SELECT * FROM transducer._person_source").fetchall()
-    assert len(source) == 1, f"Expected 1 row in _person_source, got {len(source)}"
+    source = transducer_db.execute(
+        f"SELECT * FROM transducer.{schema_info.source_table}"
+    ).fetchall()
+    assert len(source) == 1, f"Expected 1 row in source, got {len(source)}"
     assert source[0] == ("T2", "TEMP2", "Eve", "TH2", "TP2", "TE2", None, None)
 
     assert transducer_db.execute("SELECT * FROM transducer._loop").fetchall() == []
 
 
-def test_target_to_source_full_employee(transducer_db):
-    """Insert a Level 2 full employee via target tables; verify _person_source populated."""
-    # 8 target inserts → seed = 9
-    transducer_db.execute("INSERT INTO transducer._loop VALUES (9)")
-    transducer_db.execute("INSERT INTO transducer._person VALUES ('T3', 'Finn')")
-    transducer_db.execute("INSERT INTO transducer._employee VALUES ('T3', 'TEMP3')")
+def test_target_to_source_full_employee(transducer_db, schema_info):
+    """Insert a Level 2 full employee via target tables; verify source populated."""
+    tbl = schema_info.tables
+    manager = _self_manager(schema_info, ssn="T3", empid="TEMP3")
+    seed_target_loop(transducer_db, 8)
+    transducer_db.execute(f"INSERT INTO transducer.{tbl['person']} VALUES ('T3', 'Finn')")
     transducer_db.execute(
-        "INSERT INTO transducer._employeedate VALUES ('TEMP3', 'TH3')"
+        f"INSERT INTO transducer.{tbl['employee']} VALUES ('T3', 'TEMP3')"
     )
-    transducer_db.execute("INSERT INTO transducer._ped VALUES ('T3', 'TEMP3')")
-    transducer_db.execute("INSERT INTO transducer._deptmanager VALUES ('TD3', 'TEMP3')")
-    transducer_db.execute("INSERT INTO transducer._peddept VALUES ('TEMP3', 'TD3')")
-    transducer_db.execute("INSERT INTO transducer._personphone VALUES ('T3', 'TP3')")
-    transducer_db.execute("INSERT INTO transducer._personemail VALUES ('T3', 'TE3')")
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['employee_date']} VALUES ('TEMP3', 'TH3')"
+    )
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['ped']} VALUES ('T3', 'TEMP3')"
+    )
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['dept_manager']} VALUES ('TD3', '{manager}')"
+    )
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['ped_dept']} VALUES ('TEMP3', 'TD3')"
+    )
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['phone']} VALUES ('T3', 'TP3')"
+    )
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['email']} VALUES ('T3', 'TE3')"
+    )
 
-    source = transducer_db.execute("SELECT * FROM transducer._person_source").fetchall()
-    assert len(source) == 1, f"Expected 1 row in _person_source, got {len(source)}"
-    assert source[0] == ("T3", "TEMP3", "Finn", "TH3", "TP3", "TE3", "TD3", "TEMP3")
+    source = transducer_db.execute(
+        f"SELECT * FROM transducer.{schema_info.source_table}"
+    ).fetchall()
+    assert len(source) == 1, f"Expected 1 row in source, got {len(source)}"
+    assert source[0] == ("T3", "TEMP3", "Finn", "TH3", "TP3", "TE3", "TD3", manager)
 
     assert transducer_db.execute("SELECT * FROM transducer._loop").fetchall() == []
+
+
+# --- Idempotence + round-trip ---
+
+
+def test_source_pk_rejects_duplicate(transducer_db, schema_info):
+    """Re-inserting the same source PK raises UniqueViolation; targets unchanged."""
+    insert_source(
+        transducer_db, schema_info, ssn="ID1", name="Ida", phone="P1", email="E1"
+    )
+    state_before = target_state(transducer_db, schema_info)
+    with pytest.raises(psycopg.errors.UniqueViolation):
+        insert_source(
+            transducer_db, schema_info, ssn="ID1", name="Ida", phone="P1", email="E1"
+        )
+    assert target_state(transducer_db, schema_info) == state_before
+
+
+def test_target_on_conflict_dedupes(transducer_db, schema_info):
+    """Two source rows sharing a projected target key must not duplicate target rows.
+
+    Exercises the ``ON CONFLICT ... DO NOTHING`` branch of ``insert_mapping.sql.j2``.
+    Only meaningful where the source PK admits distinct rows that project to the
+    same target row — true for example2's composite PK ``(ssn, phone, email)``.
+    """
+    if schema_info.example != "example2":
+        pytest.skip("example2-only: needs composite source PK to vary non-projected cols")
+    insert_source(
+        transducer_db, schema_info, ssn="S1", name="Ada", phone="P1", email="E1"
+    )
+    insert_source(
+        transducer_db, schema_info, ssn="S1", name="Ada", phone="P2", email="E2"
+    )
+    state = target_state(transducer_db, schema_info)
+    assert state["person"] == [("S1", "Ada")]  # deduped
+    assert sorted(state["phone"]) == [("S1", "P1"), ("S1", "P2")]
+    assert sorted(state["email"]) == [("S1", "E1"), ("S1", "E2")]
+
+
+def test_source_to_target_to_source_roundtrip(transducer_db, schema_info):
+    """Level-2 source row → targets → truncate → re-hydrate via targets → same source.
+
+    End-to-end correctness assertion: the T→S reconstruction must recover the
+    exact tuple originally inserted into the source.
+    """
+    manager = _self_manager(schema_info, ssn="R1", empid="EMPR1")
+    original = dict(
+        ssn="R1",
+        empid="EMPR1",
+        name="Rhea",
+        hdate="HR1",
+        phone="PR1",
+        email="ER1",
+        dept="DR1",
+        manager=manager,
+    )
+    insert_source(transducer_db, schema_info, **original)
+    # Confirm full propagation before wiping state.
+    state = target_state(transducer_db, schema_info)
+    assert len(state["dept_manager"]) == 1
+
+    truncate_all(transducer_db)
+
+    tbl = schema_info.tables
+    seed_target_loop(transducer_db, 8)
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['person']} VALUES (%s, %s)",
+        (original["ssn"], original["name"]),
+    )
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['employee']} VALUES (%s, %s)",
+        (original["ssn"], original["empid"]),
+    )
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['employee_date']} VALUES (%s, %s)",
+        (original["empid"], original["hdate"]),
+    )
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['ped']} VALUES (%s, %s)",
+        (original["ssn"], original["empid"]),
+    )
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['dept_manager']} VALUES (%s, %s)",
+        (original["dept"], original["manager"]),
+    )
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['ped_dept']} VALUES (%s, %s)",
+        (original["empid"], original["dept"]),
+    )
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['phone']} VALUES (%s, %s)",
+        (original["ssn"], original["phone"]),
+    )
+    transducer_db.execute(
+        f"INSERT INTO transducer.{tbl['email']} VALUES (%s, %s)",
+        (original["ssn"], original["email"]),
+    )
+
+    source = transducer_db.execute(
+        f"SELECT {', '.join(SOURCE_COLUMNS)} FROM transducer.{schema_info.source_table}"
+    ).fetchall()
+    assert len(source) == 1
+    assert source[0] == tuple(original[c] for c in SOURCE_COLUMNS)
+    assert transducer_db.execute("SELECT * FROM transducer._loop").fetchall() == []
+
+
+# --- Level-transition / guard hierarchy ---
+
+
+def test_level_upgrade_via_reinsert_blocked(transducer_db, schema_info):
+    """Upgrading an existing row (L0 → L1) by re-inserting the same ssn is rejected.
+
+    Documents the current limitation: UPDATE is not yet compiled, so you cannot
+    add empid/hdate to an existing L0 row. Either the source PK (identical cols)
+    or the MVD check (same ssn, different non-MVD attrs) fires before any
+    trigger populates L1 targets.
+    """
+    insert_source(
+        transducer_db, schema_info, ssn="U1", name="Una", phone="UP1", email="UE1"
+    )
+    pre = target_state(transducer_db, schema_info)
+    assert pre["employee"] == []  # L1 not populated yet
+
+    with pytest.raises(
+        (psycopg.errors.UniqueViolation, psycopg.errors.RaiseException)
+    ):
+        insert_source(
+            transducer_db,
+            schema_info,
+            ssn="U1",
+            empid="UEMP1",
+            name="Una",
+            hdate="UH1",
+            phone="UP1",
+            email="UE1",
+        )
+    # State unchanged: L1 never populated
+    assert target_state(transducer_db, schema_info)["employee"] == []
+
+
+def test_independent_levels_coexist(transducer_db, schema_info):
+    """A later Level-1 row doesn't disturb a previously-inserted Level-0 row."""
+    insert_source(
+        transducer_db, schema_info, ssn="L0", name="Leo", phone="LP0", email="LE0"
+    )
+    l0_state = target_state(transducer_db, schema_info)
+    assert l0_state["employee"] == []
+
+    insert_source(
+        transducer_db,
+        schema_info,
+        ssn="L1",
+        empid="LEMP1",
+        name="Lea",
+        hdate="LH1",
+        phone="LP1",
+        email="LE1",
+    )
+    state = target_state(transducer_db, schema_info)
+
+    # L0 row's data still present unchanged
+    assert ("L0", "Leo") in state["person"]
+    assert ("L0", "LP0") in state["phone"]
+    assert ("L0", "LE0") in state["email"]
+    # L1 row adds new entries at all levels it reaches
+    assert ("L1", "Lea") in state["person"]
+    assert state["employee"] == [("L1", "LEMP1")]
+    assert state["employee_date"] == [("LEMP1", "LH1")]
+
+
+# --- Direct target insert: declared FKs are live ---
+
+
+def test_target_fk_rejects_orphan_phone(transducer_db, schema_info):
+    """Directly inserting into the phone table without a matching person row fails.
+
+    Confirms the declared FK phone(ssn) → person(ssn) is enforced at runtime.
+    """
+    tbl = schema_info.tables
+    with pytest.raises(
+        (psycopg.errors.ForeignKeyViolation, psycopg.errors.RaiseException)
+    ):
+        transducer_db.execute(
+            f"INSERT INTO transducer.{tbl['phone']} VALUES ('ORPHAN', 'PX')"
+        )
+
+
+# --- Simultaneous constraint failures ---
+
+
+def test_simultaneous_cfd_and_inc_violations(transducer_db, schema_info):
+    """A row violating both a CFD (empid→hdate) and the INC (manager⊆empid) raises.
+
+    Documents *which* check fires first so future codegen re-ordering can't
+    silently change error semantics. The row is constructed so both checks
+    would fail: empid set with hdate NULL (CFD), and manager='GHOST' (INC).
+    """
+    if schema_info.example != "example1":
+        pytest.skip("example1-only: uses example1's CFD + INC configuration")
+    insert_source(
+        transducer_db, schema_info, ssn="SA", name="Seed", phone="PSA", email="ESA"
+    )
+    with pytest.raises(psycopg.errors.RaiseException) as excinfo:
+        insert_source(
+            transducer_db,
+            schema_info,
+            ssn="SB",
+            empid="EMPB",
+            name="Ben",
+            phone="PSB",
+            email="ESB",
+            manager="GHOST",
+        )
+    msg = str(excinfo.value)
+    # Current ordering: CFD checks fire before INC checks (document both-or-neither).
+    assert "CFD violation" in msg or "INC violation" in msg
+
+
+# --- T→S loop-seed protocol ---
+
+
+def test_wrong_loop_seed_leaves_source_empty(transducer_db, schema_info):
+    """Seeding _loop with the wrong count for a Level-0 T→S insert does not fire
+    TARGET_INSERT_FN, so the source table stays empty and _loop still has rows.
+
+    Codifies the protocol contract: ABS(seed) must equal the exact count of
+    remaining target decrements for reconstruction to fire.
+    """
+    tbl = schema_info.tables
+    # Off-by-one: correct seed for 3 inserts would be 4; use 5 instead.
+    transducer_db.execute("INSERT INTO transducer._loop VALUES (5)")
+    transducer_db.execute(f"INSERT INTO transducer.{tbl['person']} VALUES ('W1', 'Wyn')")
+    transducer_db.execute(f"INSERT INTO transducer.{tbl['phone']} VALUES ('W1', 'WP1')")
+    transducer_db.execute(f"INSERT INTO transducer.{tbl['email']} VALUES ('W1', 'WE1')")
+
+    source = transducer_db.execute(
+        f"SELECT * FROM transducer.{schema_info.source_table}"
+    ).fetchall()
+    assert source == []  # TARGET_INSERT_FN never fired
+    # _loop still has the decremented counter (not cleaned up)
+    loop = transducer_db.execute("SELECT * FROM transducer._loop").fetchall()
+    assert loop != []
