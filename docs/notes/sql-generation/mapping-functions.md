@@ -349,7 +349,7 @@ IF EXISTS (SELECT * FROM temp_table_join
 END IF;
 ```
 
-This is hand-tailored to the PERSON hierarchy and remains an [open problem](../open-problems.md) for generalization. See `docs/notes/example/null_example_notes.sql` for detailed discussion.
+This is hand-tailored to the PERSON hierarchy and remains an [open problem](../open-problems.md#tuple-containment-in-target-to-source-mapping-with-nulls) for generalization.
 
 ## Cleanup
 

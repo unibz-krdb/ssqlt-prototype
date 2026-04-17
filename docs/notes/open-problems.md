@@ -1,10 +1,20 @@
 # Open Problems
 
-This document compiles unresolved issues identified during the design and prototyping of the transducer compiler. Each problem represents a gap between the current prototype SQL and a fully general, automated compilation pipeline. They are listed roughly in order of how early they arise in the compilation process: join construction, constraint enforcement, update propagation, and schema structure.
+This document compiles unresolved issues identified during the design and prototyping of the transducer compiler. Each problem represents a gap between the current prototype SQL and a fully general, automated compilation pipeline.
+
+Entries are tagged with a severity to help prioritize future work:
+
+- **Blocker** — the compiler cannot produce correct output for general schemas; a non-trivial class of inputs is rejected, mis-compiled, or produces cartesian-product-sized result sets.
+- **Correctness** — the compiler produces silently wrong results for some inputs, or relies on a manual workaround that does not generalize.
+- **Optimization** — output is correct but inefficient; production-scale workloads will suffer.
+
+Within each severity group, entries are ordered roughly by how early they arise in the compilation process: join construction, constraint enforcement, update propagation, and schema structure.
 
 ---
 
 ## NATURAL JOIN ordering
+
+**Severity:** Blocker
 
 The join layer reconstructs full tuples by NATURAL JOINing all base tables together, but no formal algorithm exists for determining a correct join order. When two tables share no attributes, joining them produces a cartesian product, inflating the result set and breaking downstream projections. The correct order must follow the foreign key graph so that each successive join shares at least one attribute with the accumulated result.
 
@@ -14,47 +24,9 @@ Currently the prototype uses a manually chosen join order that works for the run
 
 Source: `notes/transducer_definition.sql` lines 194-215
 
-## Non-shared-LHS MVDs
-
-The MVD constraint check query assumes all multivalued dependencies in a table share the same left-hand side. For example, if a table has X ->> Y1 and X ->> Y2, the EXCEPT-based violation check correctly verifies that all cross-product combinations exist. However, when MVDs have different left-hand sides (e.g., X ->> Z and XY ->> T), the same EXCEPT query produces false violations because the cross-product logic does not account for the differing determinant sets.
-
-This is a problem for the compiler because MVD enforcement is generated automatically from the parsed constraint declarations. If the compiler encounters a table with non-shared-LHS MVDs, it will emit incorrect violation check SQL that rejects valid insertions. The compiler either needs to detect this case and refuse it, or generate a different form of check query.
-
-No solution exists yet. The current implementation only handles the shared-LHS case and does not detect or warn about the non-shared-LHS situation.
-
-Source: `notes/constraint_definition.sql` lines 210-216
-
-## Join layer optimization
-
-Each join function in the current prototype computes the same full NATURAL LEFT OUTER JOIN query once for every target table it projects into. If a source schema has n target tables, the identical multi-table join is evaluated n times within a single trigger invocation. This is redundant work that scales poorly as the number of target tables grows.
-
-The compiler needs to eliminate this redundancy to produce efficient trigger functions. The natural solution is to compute the join once into a temporary table and then project from that temp table into each target. The current prototype already uses temporary tables in some places, so the pattern exists, but it has not been formalized into a general compilation rule.
-
-Current status: the problem is identified and the solution direction is clear (single temp table per join invocation), but the compiler does not yet implement this optimization.
-
-Source: `notes/transducer_definition.sql` lines 316-317
-
-## DELETE independence generalization
-
-When a DELETE occurs in a source table, the transducer must determine which target table tuples are no longer needed. The current approach uses an EXCEPT query to check whether other source tuples still reference the same attribute values. If no other tuple provides those values, the target tuple can be safely deleted. This per-target-table independence check works correctly for the running example.
-
-However, the running example has a relatively simple FK structure. For schemas with deeper foreign key hierarchies, multiple connected components, or tables that participate in several FK relationships simultaneously, the EXCEPT-based check may miss dependencies or produce incorrect results. The independence property needs formal validation against more complex schema topologies.
-
-Current status: the approach works empirically for the prototype example but has not been tested or proven correct for the general case.
-
-Source: `notes/updates_and_more.sql`
-
-## Composite PK foreign keys
-
-PostgreSQL does not allow creating a foreign key that references a subset of a composite primary key. For example, if `_EMPDEP` has a composite primary key `(ssn, phone, email)`, then `_PERSON_CAR.ssn REFERENCES _EMPDEP.ssn` is rejected because `ssn` alone is not a unique key in `_EMPDEP`. This is a fundamental SQL limitation, not a bug.
-
-This matters for the compiler because inclusion dependencies between tables frequently involve attributes that are part of a composite primary key in the referenced table. The compiler cannot rely on native PostgreSQL REFERENCES constraints for these cases and must instead generate custom trigger functions that enforce the inclusion dependency manually, similar to how other constraint types are already handled.
-
-Current status: the problem is identified and the workaround (custom inclusion dependency triggers) is known, but these triggers have not been implemented.
-
-Source: `notes/output.sql` lines 24-31
-
 ## Disconnected table graphs
+
+**Severity:** Blocker
 
 When a schema contains multiple independent connected components (for example, tables T1-T11 forming one group, T12-T15 another, and T16 standing alone), performing a full NATURAL JOIN across all tables produces massive cartesian products between the unconnected groups. This is a specific instance of the join ordering problem but with a different solution: rather than finding a single correct order, the compiler must identify connected components and restrict joins to within each component.
 
@@ -64,7 +36,33 @@ Current status: the need for connected component detection is identified. The gr
 
 Source: `notes/transducer_definition.sql` lines 199-215
 
+## Non-shared-LHS MVDs
+
+**Severity:** Correctness
+
+The MVD constraint check query assumes all multivalued dependencies in a table share the same left-hand side. For example, if a table has X ->> Y1 and X ->> Y2, the EXCEPT-based violation check correctly verifies that all cross-product combinations exist. However, when MVDs have different left-hand sides (e.g., X ->> Z and XY ->> T), the same EXCEPT query produces false violations because the cross-product logic does not account for the differing determinant sets.
+
+This is a problem for the compiler because MVD enforcement is generated automatically from the parsed constraint declarations. If the compiler encounters a table with non-shared-LHS MVDs, it will emit incorrect violation check SQL that rejects valid insertions. The compiler either needs to detect this case and refuse it, or generate a different form of check query.
+
+No solution exists yet. The current implementation only handles the shared-LHS case and does not detect or warn about the non-shared-LHS situation.
+
+Source: `notes/constraint_definition.sql` lines 210-216
+
+## Composite PK foreign keys
+
+**Severity:** Correctness
+
+PostgreSQL does not allow creating a foreign key that references a subset of a composite primary key. For example, if `_EMPDEP` has a composite primary key `(ssn, phone, email)`, then `_PERSON_CAR.ssn REFERENCES _EMPDEP.ssn` is rejected because `ssn` alone is not a unique key in `_EMPDEP`. This is a fundamental SQL limitation, not a bug.
+
+This matters for the compiler because inclusion dependencies between tables frequently involve attributes that are part of a composite primary key in the referenced table. The compiler cannot rely on native PostgreSQL REFERENCES constraints for these cases and must instead generate custom trigger functions that enforce the inclusion dependency manually, similar to how other constraint types are already handled.
+
+Current status: the problem is identified and the workaround (custom inclusion dependency triggers) is known, but these triggers have not been implemented.
+
+Source: `notes/output.sql` lines 24-31
+
 ## Tuple containment in target-to-source mapping with NULLs
+
+**Severity:** Correctness
 
 When nullable attributes are present in a URA (Universal Relation Assumption) schema, the target-to-source mapping function's NATURAL LEFT OUTER JOIN of `_INSERT_JOIN` tables can produce multiple valid but overlapping tuples for the same entity. The less-informative tuples (those with more NULLs) must be pruned before inserting into the source table, or PK violations occur.
 
@@ -93,11 +91,25 @@ END IF;
 
 This approach is manually tailored to the known hierarchy (person ⊃ employee ⊃ employee-with-department) and does not generalize. The compiler needs a systematic way to detect and resolve tuple containment based on the schema's null-pattern structure. A general algorithm would need to determine, from the set of guard dependencies and conditional FDs, which null-pattern groups dominate others and prune accordingly.
 
-Current status: a hand-written workaround exists for the PERSON example (`docs/notes/example/null_example_notes.sql`). No general algorithm has been developed.
+Current status: a hand-written workaround exists for the PERSON example (documented above). No general algorithm has been developed.
 
-Source: `docs/notes/example/null_example_notes.sql` lines 269-297
+Source: `docs/notes/sql-generation/mapping-functions.md` §Tuple containment resolution
+
+## DELETE independence generalization
+
+**Severity:** Correctness
+
+When a DELETE occurs in a source table, the transducer must determine which target table tuples are no longer needed. The current approach uses an EXCEPT query to check whether other source tuples still reference the same attribute values. If no other tuple provides those values, the target tuple can be safely deleted. This per-target-table independence check works correctly for the running example.
+
+However, the running example has a relatively simple FK structure. For schemas with deeper foreign key hierarchies, multiple connected components, or tables that participate in several FK relationships simultaneously, the EXCEPT-based check may miss dependencies or produce incorrect results. The independence property needs formal validation against more complex schema topologies.
+
+Current status: the approach works empirically for the prototype example but has not been tested or proven correct for the general case.
+
+Source: `notes/updates_and_more.sql`
 
 ## Inclusion dependencies
+
+**Severity:** Correctness
 
 Inclusion dependencies generalize foreign keys: they state that the set of values appearing in one attribute must be a subset of the values appearing in another attribute, possibly in a different table. For example, a `manager` attribute must contain only values that also appear in the `ssn` attribute. The constraint definition notes mention this dependency type but provide no implementation detail.
 
@@ -106,3 +118,42 @@ The compiler needs to support inclusion dependencies because they appear in the 
 Current status: a working implementation exists for the intra-table case in `docs/notes/example/1_source.sql` (`check_PERSON_IND_FN_1`), which enforces `manager ⊆ ssn` within the same table using a BEFORE INSERT trigger. The function handles NULLs (allowing NULL manager) and self-reference (allowing `manager = ssn`). The RAPT2 parser already recognizes inclusion dependency nodes, but the compiler does not yet generate these enforcement triggers automatically. The inter-table case (INC across different tables) has not been implemented.
 
 Source: `notes/constraint_definition.sql` lines 436-444, `docs/notes/example/1_source.sql` lines 71-93
+
+## `_LOOP` pre-seeding leaks compiler contract to client
+
+**Severity:** Correctness
+
+Multi-table DELETE transactions require the SQL client to pre-seed the `_LOOP` table with a manual count matching the number of DELETE triggers that will fire in the transaction:
+
+```sql
+BEGIN;
+INSERT INTO transducer._loop VALUES (4);
+DELETE FROM transducer._PERSON_PHONE WHERE ssn = 'ssn3';
+DELETE FROM transducer._PERSON_EMAIL WHERE ssn = 'ssn3';
+DELETE FROM transducer._PERSON WHERE ssn = 'ssn3';
+END;
+```
+
+The pre-seeded value (here `4`) must equal the total number of `_LOOP` rows that will exist when all deletes have fired (one pre-seeded row plus one per DELETE trigger). If the client gets the count wrong, the wait-mechanism count check fails: either the mapping function fires too early (count satisfied before all tables are processed, producing incomplete propagation) or it never fires (count never reached, leaving `_DELETE` and `_DELETE_JOIN` tables populated indefinitely).
+
+This pushes a compiler-level concern — synchronization of the trigger chain — onto every client issuing multi-table DELETEs. It is fragile: a schema change that adds a DELETE trigger silently breaks every client that hardcodes the old count. It is also not documented as a required part of the transducer's public API; the notes mention it as an implementation detail of the delete chain, not as a contract that clients must honor.
+
+Mitigation directions:
+
+- Generate a helper function per schema (e.g., `transducer.multi_delete(count INT)`) that wraps the pre-seed and delete sequence, so clients call a single function rather than hand-managing `_LOOP`.
+- Replace the count-based wait mechanism with a different synchronization primitive — session-scoped GUC variables, advisory locks, or `ON COMMIT` triggers — that does not require the client to know how many triggers will fire.
+- At a minimum, document the contract prominently (not buried mid-doc) and generate a compile-time constant the client can reference (e.g., `transducer.delete_trigger_count` as a function returning the per-schema value).
+
+Source: `docs/notes/sql-generation/delete-chain.md` lines 194-220
+
+## Join layer optimization
+
+**Severity:** Optimization
+
+Each join function in the current prototype computes the same full NATURAL LEFT OUTER JOIN query once for every target table it projects into. If a source schema has n target tables, the identical multi-table join is evaluated n times within a single trigger invocation. This is redundant work that scales poorly as the number of target tables grows.
+
+The compiler needs to eliminate this redundancy to produce efficient trigger functions. The natural solution is to compute the join once into a temporary table and then project from that temp table into each target. The current prototype already uses temporary tables in some places, so the pattern exists, but it has not been formalized into a general compilation rule.
+
+Current status: the problem is identified and the solution direction is clear (single temp table per join invocation), but the compiler does not yet implement this optimization.
+
+Source: `notes/transducer_definition.sql` lines 316-317

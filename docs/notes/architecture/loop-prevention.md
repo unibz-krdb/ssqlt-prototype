@@ -100,3 +100,5 @@ The `DELETE FROM LOOP` at the end ensures the control table is empty before the 
 ## Dual Role of _LOOP
 
 The `_LOOP` table serves a second purpose beyond loop prevention: it acts as a synchronization counter for the [wait mechanism](timing-and-ordering.md) that ensures the final mapping function only fires after all per-table join triggers have completed. Each trigger adds a row to `_LOOP`, and the final mapping function checks that the row count matches the expected number of triggers before proceeding.
+
+This dual role is the source of the concurrency issues documented in [concurrency.md](concurrency.md): the count-based wait mechanism cannot distinguish markers from different concurrent transactions, so `_LOOP` is only safe under single-writer serialization.
