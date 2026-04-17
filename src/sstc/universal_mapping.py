@@ -1,14 +1,7 @@
-"""Extract structural information from a parsed UniversalMapping AssignNode.
-
-The UniversalMapping expression encodes two pieces of information the
-generator needs: the list of attributes in the universal tuple (from
-the enclosing ProjectNode), and the order in which base tables are
-natural-joined to reconstruct it (from the nested NaturalJoinNode tree).
-"""
+"""Extract projection and join order from a parsed UniversalMapping AssignNode."""
 
 from rapt2.treebrd.node import (
     AssignNode,
-    NaturalJoinNode,
     Node,
     ProjectNode,
     RelationNode,
@@ -43,24 +36,7 @@ def extract_projection(node: AssignNode) -> list[str]:
 
 
 def extract_join_order(node: AssignNode) -> list[str]:
-    """Return the left-to-right base-table sequence from a UniversalMapping.
-
-    Handles three shapes:
-    - AssignNode -> ProjectNode -> RelationNode             (single table)
-    - AssignNode -> ProjectNode -> NaturalJoinNode (tree)   (multi-table)
-    - AssignNode -> RelationNode / NaturalJoinNode          (bare, no project)
-    """
+    """Return the left-to-right base-table sequence from a UniversalMapping."""
     if not isinstance(node, AssignNode):
         raise ValueError(f"Expected AssignNode, got {type(node).__name__}")
-    return _collect(_inner(node))
-
-
-def _collect(node: Node) -> list[str]:
-    if isinstance(node, RelationNode):
-        return [node.name]
-    if isinstance(node, NaturalJoinNode):
-        return _collect(node.left) + _collect(node.right)
-    raise ValueError(
-        "UniversalMapping inner expression must be a \\natural_join chain "
-        f"of relations; got {type(node).__name__}"
-    )
+    return [n.name for n in _inner(node).post_order() if isinstance(n, RelationNode)]

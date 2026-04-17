@@ -41,16 +41,7 @@ UNIVERSAL_MAPPING_NAME = "universalmapping"
 
 
 class Context:
-    """Generic base class for source and target contexts.
-
-    The ``universal_mapping`` attribute holds the parsed RA expression of
-    the reserved ``UniversalMapping`` assign node. Its presence is
-    validated by :meth:`from_file` (a missing definition raises) but its
-    RA expression is currently not consumed by the generator — downstream
-    code reads :attr:`Table.attributes` directly. See
-    ``docs/notes/open-problems.md`` ("universal_mapping parsed but
-    unread") and Tier 2 of ``docs/notes/THEORY-PARITY.md``.
-    """
+    """Generic base class for source and target contexts."""
 
     tables: list[Table]
     schema: Schema
@@ -104,12 +95,16 @@ class Context:
         """Ordered base-table names from the UniversalMapping join chain.
 
         The sequence mirrors the user's declared ``\\natural_join`` order.
-        Raises ValueError if the UniversalMapping was not parsed (should
-        be unreachable since ``from_file`` rejects missing definitions).
         """
         if self.universal_mapping is None:
             raise ValueError("universal_mapping was not parsed")
         return extract_join_order(self.universal_mapping)
+
+    @functools.cached_property
+    def ordered_tables(self) -> list[Table]:
+        """Tables in UniversalMapping join order."""
+        by_name = {t.name: t for t in self.tables}
+        return [by_name[name] for name in self.universal_mapping_join_order]
 
     @classmethod
     def from_file(
@@ -125,11 +120,6 @@ class Context:
         relation assignments (Table definitions), dependency nodes (PK, FD,
         MVD, INC constraints), and a reserved UniversalMapping assignment.
         Tables are constructed by matching each relation to its dependencies.
-
-        A ``UniversalMapping`` assign node is required and raises if absent,
-        but its RA expression is not consumed downstream in the current
-        compilation pipeline. See ``docs/notes/open-problems.md``
-        ("universal_mapping parsed but unread").
         """
         universal_attributes = []
         schema = {"Universal": []}

@@ -55,11 +55,6 @@ class Generator:
     def _universal_schema(self) -> list:
         return self.ctx.source.universal_schema
 
-    def _ordered_tables(self, context: Context) -> list[Table]:
-        """Return context.tables in UniversalMapping join order."""
-        by_name = {t.name: t for t in context.tables}
-        return [by_name[name] for name in context.universal_mapping_join_order]
-
     def _universal_columns(self) -> list[dict]:
         return [
             {"name": a.name, "data_type": a.data_type} for a in self._universal_schema
@@ -247,7 +242,7 @@ class Generator:
                 else TARGET_LOOP_VALUE
             )
 
-            ordered = self._ordered_tables(context)
+            ordered = context.ordered_tables
             all_tables_info = [{"name": t.name, "attrs": t.attributes} for t in ordered]
 
             for table in ordered:
@@ -325,8 +320,8 @@ class Generator:
         universal_columns = self._universal_columns()
         universal_col_names = self._universal_col_names()
 
-        ordered_source = self._ordered_tables(source)
-        ordered_target = self._ordered_tables(target)
+        ordered_source = source.ordered_tables
+        ordered_target = target.ordered_tables
         src_table_names = [t.name for t in ordered_source]
         tgt_table_names = [t.name for t in ordered_target]
 
@@ -461,8 +456,8 @@ class Generator:
     def _build_source_delete_checks(self, source: Context, target: Context) -> dict:
         """Build independence checks for source->target DELETE mapping."""
         mvds = source.multivalued_dependencies
-        ordered_source = self._ordered_tables(source)
-        ordered_target = self._ordered_tables(target)
+        ordered_source = source.ordered_tables
+        ordered_target = target.ordered_tables
         src_table = ordered_source[0]
         src_table_names = [t.name for t in ordered_source]
         src_name = src_table.name
@@ -535,7 +530,7 @@ class Generator:
         a universal tuple leaves other source tuples that still require
         the same data.
         """
-        ordered_source = self._ordered_tables(source)
+        ordered_source = source.ordered_tables
         src_names = [t.name for t in ordered_source]
         join_source = "SELECT * FROM " + " NATURAL LEFT OUTER JOIN ".join(
             f"{self.schema}._{n}" for n in src_names

@@ -1,7 +1,12 @@
+import json
+
+import pytest
 from rapt2.treebrd.node import (
     FunctionalDependencyNode,
     MultivaluedDependencyNode,
 )
+
+from sstc.context import Context, Direction, UNIVERSAL_MAPPING_NAME
 
 
 def test_context(example_1_ctx):
@@ -75,10 +80,6 @@ def test_example2_context_nullability(example_2_ctx):
 
 def test_mixed_case_schema_names_normalized(tmp_path):
     """Attribute names from JSON should be lowercased to match RAPT2 output."""
-    import json
-    from sstc.context import Context, Direction
-
-    # Write a minimal universal schema with mixed case
     schema_path = tmp_path / "universal.json"
     schema_path.write_text(
         json.dumps(
@@ -107,8 +108,6 @@ def test_mixed_case_schema_names_normalized(tmp_path):
 
 def test_universal_mapping_constant_exists():
     """The reserved mapping name should be a module-level constant."""
-    from sstc.context import UNIVERSAL_MAPPING_NAME
-
     assert UNIVERSAL_MAPPING_NAME == "universalmapping"
 
 
@@ -135,10 +134,6 @@ def test_source_universal_mapping_join_order_is_single_table(example_1_ctx):
 
 def test_from_file_rejects_universal_mapping_missing_declared_table(tmp_path):
     """If a declared table is missing from UniversalMapping, from_file must raise."""
-    import json
-    import pytest
-    from sstc.context import Context, Direction
-
     schema_path = tmp_path / "universal.json"
     schema_path.write_text(
         json.dumps(
