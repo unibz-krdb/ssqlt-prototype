@@ -1961,14 +1961,14 @@ BEGIN
 
     IF NOT EXISTS (SELECT * FROM transducer._person_source WHERE ssn = NEW.ssn
         EXCEPT (SELECT * FROM transducer._person_source WHERE ssn = NEW.ssn AND empid = NEW.empid AND name = NEW.name AND hdate = NEW.hdate AND phone = NEW.phone AND email = NEW.email AND dept = NEW.dept AND manager = NEW.manager)) THEN
-        DELETE FROM transducer._person WHERE ssn = NEW.ssn;
-        DELETE FROM transducer._personphone WHERE ssn = NEW.ssn AND phone = NEW.phone;
-        DELETE FROM transducer._personemail WHERE ssn = NEW.ssn AND email = NEW.email;
-        DELETE FROM transducer._employee WHERE empid = NEW.empid;
-        DELETE FROM transducer._employeedate WHERE empid = NEW.empid;
-        DELETE FROM transducer._ped WHERE empid = NEW.empid;
-        DELETE FROM transducer._peddept WHERE empid = NEW.empid;
         DELETE FROM transducer._deptmanager WHERE dept = NEW.dept;
+        DELETE FROM transducer._peddept WHERE empid = NEW.empid;
+        DELETE FROM transducer._ped WHERE empid = NEW.empid;
+        DELETE FROM transducer._employeedate WHERE empid = NEW.empid;
+        DELETE FROM transducer._employee WHERE empid = NEW.empid;
+        DELETE FROM transducer._personemail WHERE ssn = NEW.ssn AND email = NEW.email;
+        DELETE FROM transducer._personphone WHERE ssn = NEW.ssn AND phone = NEW.phone;
+        DELETE FROM transducer._person WHERE ssn = NEW.ssn;
     END IF;
 
     DELETE FROM transducer._person_source_DELETE;

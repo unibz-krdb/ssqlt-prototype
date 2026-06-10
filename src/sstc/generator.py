@@ -505,8 +505,12 @@ class Generator:
             lhs_match + " AND " + " AND ".join(f"{a} = NEW.{a}" for a in non_pk_attrs)
         )
 
+        # Delete children before parents: ``ordered_target`` is root-first
+        # (the order the JOIN reconstruction needs), so the FK-safe DELETE
+        # order is its reverse. Deleting a parent first violates the child
+        # FKs (e.g. _personphone.ssn -> _person.ssn).
         full_deletes = []
-        for t in ordered_target:
+        for t in reversed(ordered_target):
             t_pk = target.primary_keys.get(t.name, [])
             cond = " AND ".join(
                 f"{a} = NEW.{a}" for a in (t_pk if t_pk else t.attributes)
