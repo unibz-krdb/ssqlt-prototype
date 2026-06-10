@@ -99,7 +99,8 @@ def test_inter_table_inc_fks_and_triggers(example_1_gen):
     result = example_1_gen._inter_table_inc()
 
     # One FK per INC when referenced cols match the referenced table's PK;
-    # otherwise a BEFORE INSERT trigger enforcing the inclusion.
+    # otherwise an AFTER INSERT DEFERRABLE INITIALLY DEFERRED constraint
+    # trigger enforcing the inclusion.
     # example1: 4 equivalences are PK-match (PersonPhone->Person, PersonEmail->Person,
     # EmployeeDate->Employee, PEDDept->PED) + 3 inter-table subsumptions
     # (Employee->Person, PED->Employee, DeptManager->Employee) = 7 FKs.

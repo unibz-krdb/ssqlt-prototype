@@ -64,10 +64,13 @@ def emit_inc_trigger(
     idx: int,
     render: RenderFn,
 ) -> str:
-    """Emit a BEFORE INSERT trigger enforcing an inter-table INC.
+    """Emit a deferred constraint trigger enforcing an inter-table INC.
 
-    Scoped to single-column references; multi-column inter-table INC
-    enforcement is tracked as Tier 3 work in docs/notes/open-problems.md.
+    The trigger fires AFTER INSERT and is DEFERRABLE INITIALLY DEFERRED so
+    the multi-statement mapping cascade can tolerate intermediate
+    violations within a transaction. Scoped to single-column references;
+    multi-column inter-table INC enforcement is tracked as Tier 3 work in
+    docs/notes/open-problems.md.
     The schema prefix is injected by the Generator's render callback.
     """
     return render(
@@ -105,8 +108,8 @@ def inter_table_inc(
     """Generate inter-table inclusion enforcement: FK where possible, trigger otherwise.
 
     For each INC, a native FK is emitted when the referenced columns equal
-    the referenced table's PK; otherwise a per-row BEFORE INSERT trigger
-    enforces the inclusion by subquery. Intra-table subsumptions are
+    the referenced table's PK; otherwise a per-row AFTER INSERT DEFERRABLE
+    INITIALLY DEFERRED constraint trigger enforces the inclusion by subquery. Intra-table subsumptions are
     handled by ``inc_sql``. Equivalence INCs are enforced in only one
     direction at the compiled-SQL layer (see ``_inc_direction`` docstring).
     """
