@@ -2,7 +2,7 @@
 
 What the SSTC prototype can do today. This is a capability reference; for how
 to *run* it see [`README.md`](README.md), for how features map to the source
-paper see [`docs/notes/THEORY-PARITY.md`](docs/notes/THEORY-PARITY.md), and for
+paper see [`THEORY-PARITY.md`](THEORY-PARITY.md), and for
 known gaps see [`docs/notes/open-problems.md`](docs/notes/open-problems.md).
 
 > **Supported envelope.** Every feature below is solid within the shape the two
@@ -111,7 +111,7 @@ propagation does not re-trigger back across the bridge.
 
 Tracked in [`docs/notes/open-problems.md`](docs/notes/open-problems.md) and the
 operational-parity table of
-[`docs/notes/THEORY-PARITY.md`](docs/notes/THEORY-PARITY.md):
+[`THEORY-PARITY.md`](THEORY-PARITY.md):
 
 - Multiple source tables; automatic FK-graph join ordering; disconnected-component
   partitioning.

@@ -11,7 +11,7 @@ It is the executable companion to *"Understanding the Semantic SQL Transducer"*
 included under [`docs/papers/`](docs/papers/)). The prototype realises the
 paper's trigger architecture; it does **not** derive the lossless decomposition
 for you — you supply the already-decomposed target context and the universal
-mapping as input. See [`docs/notes/THEORY-PARITY.md`](docs/notes/THEORY-PARITY.md)
+mapping as input. See [`THEORY-PARITY.md`](THEORY-PARITY.md)
 for exactly which parts of the theory are implemented.
 
 ## Requirements
