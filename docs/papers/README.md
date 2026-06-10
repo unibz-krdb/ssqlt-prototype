@@ -28,7 +28,7 @@ The paper is a short, formal introduction; the notes are an implementation-orien
 | §4 Transformation patterns — vertical decomposition | [notes/sql-generation/table-creation.md](../notes/sql-generation/table-creation.md) |
 | §4 Transformation patterns — horizontal decomposition (σ-based split) | [notes/sql-generation/table-creation.md §Horizontal decomposition](../notes/sql-generation/table-creation.md) |
 | §4 NULL-free lossless transformation (NULLABLE → horizontally decomposed NOT NULL) | [notes/constraints/guard-dependencies.md](../notes/constraints/guard-dependencies.md), [notes/sql-generation/mapping-functions.md](../notes/sql-generation/mapping-functions.md) |
-| §4 Reverse engineering — source → CARM (Canonical Abstract Relational Model) | [notes/example/pipeline-walkthrough.md](../notes/example/pipeline-walkthrough.md) |
+| §4 Reverse engineering — source → CARM (Canonical Abstract Relational Model) | [notes/example/PIPELINE.md](../notes/example/PIPELINE.md) |
 | §4 Complete example (Source → Person, Employee, works-in, …) | [notes/example/](../notes/example/) (`1_source.sql` through `6_update.sql`, `full_script.sql`) |
 | §4 Conditional FDs / guard hierarchy (not in paper, URA-specific) | (paper gap) — [notes/constraints/guard-dependencies.md](../notes/constraints/guard-dependencies.md), [notes/constraints/conditional-join-dependencies.md](../notes/constraints/conditional-join-dependencies.md) |
 | §5 Conclusions | — |

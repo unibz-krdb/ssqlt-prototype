@@ -1,6 +1,6 @@
 # Pipeline Walkthrough: PERSON URA Example
 
-How the SSTC compiler processes `test/inputs/example1/` — from relational algebra input to ~1,950 lines of PostgreSQL. Each section corresponds to a stage in the `Generator.compile()` pipeline.
+How the SSTC compiler processes `test/inputs/example1/` — from relational algebra input to ~2,100 lines of PostgreSQL. Each section corresponds to a stage in the `Generator.compile()` pipeline.
 
 ---
 
@@ -117,7 +117,7 @@ All constraints live on the source side except the inter-table INCs, which are o
 
 ## Stage 4: Generator Compilation
 
-`Generator(ctx).compile()` (`generator.py:67-88`) validates exactly 1 source table, then assembles 7 sections. Each section calls `self._render()` to populate Jinja2 templates from `src/sstc/templates/`.
+`Generator(ctx).compile()` (`generator.py:66-88`) validates exactly 1 source table, then assembles 8 sections. Each section calls `self._render()` to populate Jinja2 templates from `src/sstc/templates/`.
 
 ### 4.1 Preamble
 
@@ -139,17 +139,38 @@ For each table in both contexts, `_table_columns()` maps attribute names back to
 
 In this example, all columns are nullable (no `NOT NULL` constraints), because all universal attributes have `is_nullable: true`. Only the primary key constraint enforces non-nullability implicitly.
 
-### 4.3 Foreign Keys
+### 4.3 Update Rejection
 
-Function: `foreign_keys()` in `constraints.py`
+Template: `reject_update.sql.j2` (rendered 9 times)
 
-Iterates both contexts' inclusion dependencies and emits `ALTER TABLE ADD FOREIGN KEY` when the referenced columns form the referenced table's primary key.
+UPDATE propagation is not implemented, so every base table gets a `BEFORE UPDATE` trigger that raises instead of silently bypassing the mapping pipeline. An `UPDATE` must be expressed as `DELETE` + `INSERT`.
+
+```sql
+CREATE OR REPLACE FUNCTION transducer.person_source_REJECT_UPDATE()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'UPDATE on %.% is not supported by this transducer; use DELETE + INSERT', TG_TABLE_SCHEMA, TG_TABLE_NAME;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER person_source_REJECT_UPDATE
+BEFORE UPDATE ON transducer._person_source
+FOR EACH ROW EXECUTE FUNCTION transducer.person_source_REJECT_UPDATE();
+```
+
+**Output:** 18 statements (9 functions + 9 triggers, one pair per base table).
+
+### 4.4 Foreign Keys
+
+Function: `inter_table_inc()` in `constraints.py`
+
+Iterates both contexts' inter-table inclusion dependencies and emits `ALTER TABLE ADD FOREIGN KEY` when the referenced columns form the referenced table's primary key. When they don't — a single-column reference to a non-PK column — it falls back to an `AFTER INSERT DEFERRABLE INITIALLY DEFERRED` constraint trigger (`inc_inter_check.sql.j2`).
 
 **Direction rules:**
 - **Equivalence INCs** (`inc=`): direction is swapped — the second relation references the first. `inc=_{ssn, ssn}(Person, PersonPhone)` becomes `PersonPhone REFERENCES Person(ssn)`.
 - **Subsumption INCs** (`inc⊆`): first references second. `inc⊆_{ssn, ssn}(Employee, Person)` becomes `Employee(ssn) REFERENCES Person(ssn)`.
 
-The source-side `inc⊆_{manager, empid}` does **not** produce an FK — it's an intra-table constraint handled by a trigger instead (see 4.4c).
+The source-side `inc⊆_{manager, empid}` does **not** produce an FK — it's an intra-table constraint handled by a trigger instead (see 4.5c).
 
 **Output:** 7 `ALTER TABLE ADD FOREIGN KEY` statements:
 
@@ -163,13 +184,15 @@ The source-side `inc⊆_{manager, empid}` does **not** produce an FK — it's an
 | 6 | PED(empid) | Employee(empid) |
 | 7 | DeptManager(manager) | Employee(empid) |
 
-### 4.4 Constraints
+Plus **1 deferred constraint trigger**: the `inc=_{dept, dept}(PEDDept, DeptManager)` equivalence requires `DeptManager.dept ⊆ PEDDept.dept`, but `dept` is not PEDDept's primary key (`empid` is), so a native FK is impossible. An `AFTER INSERT DEFERRABLE INITIALLY DEFERRED` trigger on `DeptManager` enforces it instead.
+
+### 4.5 Constraints
 
 Function: `constraints()` in `constraints.py`
 
 Generates enforcement triggers for both contexts. For this example, all constraints are on the source side.
 
-#### 4.4a MVD Enforcement
+#### 4.5a MVD Enforcement
 
 Templates: `mvd_check.sql.j2`, `mvd_grounding.sql.j2`
 
@@ -186,7 +209,7 @@ The `r1.phone, r1.email` come from existing tuples; everything else from NEW. If
 
 **MVD Grounding (AFTER INSERT):** Inserts complementary tuples to restore 4NF. For each determined attribute (phone, email), generates a `UNION SELECT` swapping that attribute with NEW while keeping everything else from existing tuples with the same `ssn`. This ensures that if `(ssn=1, phone=A, email=X)` exists and we insert `(ssn=1, phone=B, email=Y)`, the cross-product tuples `(ssn=1, phone=A, email=Y)` and `(ssn=1, phone=B, email=X)` are also inserted.
 
-#### 4.4b FD/CFD Enforcement
+#### 4.5b FD/CFD Enforcement
 
 Templates: `cfd_check.sql.j2`, `fd_check.sql.j2`
 
@@ -225,7 +248,7 @@ Each CFD produces exhaustive WHERE branches covering all null-pattern states tha
 
 **CFD 3** (`dept -> manager`, guards: `{empid, hdate, dept, manager}`): Same-level (both at level 2). Branches for intra-group coherence between dept and manager.
 
-#### 4.4c INC Enforcement
+#### 4.5c INC Enforcement
 
 Template: `inc_check.sql.j2`
 
@@ -235,7 +258,7 @@ The source `inc⊆_{manager, empid}` is an intra-table inclusion dependency — 
 2. Short-circuits if `manager = ssn` (self-reference via PK — the person is their own manager)
 3. Checks `NEW.manager` exists in the `empid` column of `person_source` via `SELECT DISTINCT ... EXCEPT`
 
-### 4.5 Tracking Infrastructure
+### 4.6 Tracking Infrastructure
 
 Templates: `tracking_table.sql.j2`, `capture_function.sql.j2`, `capture_trigger.sql.j2`
 
@@ -253,7 +276,7 @@ This prevents infinite cascading: when a source change propagates to the target,
 
 **Output:** 36 SQL statements (9 tables x 2 events x 3 objects).
 
-### 4.6 Join Staging
+### 4.7 Join Staging
 
 Templates: `tracking_table.sql.j2`, `join_function.sql.j2`, `join_trigger.sql.j2`
 
@@ -281,7 +304,7 @@ The LEFT OUTER JOIN (rather than inner join) preserves tuples where nullable att
 
 **Output:** 36 more SQL statements.
 
-### 4.7 Mapping Functions
+### 4.8 Mapping Functions
 
 Templates: `insert_mapping.sql.j2`, `delete_mapping.sql.j2`, `mapping_trigger.sql.j2`
 
@@ -333,13 +356,14 @@ Joins source base tables (not target) to check whether removing a universal tupl
 
 ## Output Summary
 
-The full compilation from 3 input files (~45 lines) produces ~1,950 lines of PostgreSQL:
+The full compilation from 3 input files (~45 lines) produces ~2,100 lines of PostgreSQL:
 
 | Section | Object count | Purpose |
 |---|---|---|
 | Preamble | 3 statements | Schema, loop table |
 | Base tables | 9 CREATE TABLE | Data storage |
-| Foreign keys | 7 ALTER TABLE | Inter-table referential integrity |
+| Update rejection | 18 (9 functions + 9 triggers) | BEFORE UPDATE raises; forces DELETE + INSERT |
+| Inter-table INC | 7 ALTER TABLE + 1 deferred trigger | Inter-table referential integrity |
 | Constraints | ~10 functions + triggers | MVD, CFD, INC enforcement |
 | Tracking | 36 (18 tables + 18 fn/trigger pairs) | Change capture with loop guard |
 | Join staging | 36 (18 tables + 18 fn/trigger pairs) | Universal tuple reconstruction |
@@ -360,14 +384,15 @@ target.txt ──────┘                                         │
                                                            │
                           ┌─── _preamble() ────────────────┤ DROP/CREATE schema + _loop
                           ├─── _base_tables() ─────────────┤ 9 CREATE TABLE
-                          ├─── _foreign_keys() ────────────┤ 7 ALTER TABLE ADD FK
+                          ├─── _reject_updates() ──────────┤ 9 BEFORE UPDATE reject triggers
+                          ├─── _inter_table_inc() ─────────┤ 7 ALTER TABLE ADD FK + 1 deferred trigger
                           ├─── _constraints() ─────────────┤ MVD check+grounding, 3 CFDs, 1 INC
                           ├─── _tracking() ────────────────┤ 18 tracking tables + 18 fn/triggers
                           ├─── _join() ────────────────────┤ 18 join tables + 18 fn/triggers
                           └─── _mapping() ─────────────────┤ 4 mapping fns + ~17 triggers
                                                            │
                                                            v
-                                                    ~1,950 lines of PostgreSQL
+                                                    ~2,100 lines of PostgreSQL
 ```
 
 ## Runtime Trigger Chain
