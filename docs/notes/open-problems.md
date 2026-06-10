@@ -111,13 +111,13 @@ Source: `docs/notes/sql-generation/mapping-functions.md` §Tuple containment res
 
 **Severity:** Correctness
 
-When a DELETE occurs in a source table, the transducer must determine which target table tuples are no longer needed. The current approach uses an EXCEPT query to check whether other source tuples still reference the same attribute values. If no other tuple provides those values, the target tuple can be safely deleted. This per-target-table independence check works correctly for the running example.
+When a DELETE occurs in a source table, the transducer must determine which target table tuples are no longer needed. The current approach uses an EXCEPT query to check whether other source tuples *with the same primary key* still reference the same attribute values. If no such tuple remains, the full cascade in `SOURCE_DELETE_FN` deletes from every target table by matching `NEW`. The per-target MVD checks (phone/email) generalize this correctly, but the full cascade does **not** ask whether a *different* primary key still shares a value.
 
-However, the running example has a relatively simple FK structure. For schemas with deeper foreign key hierarchies, multiple connected components, or tables that participate in several FK relationships simultaneously, the EXCEPT-based check may miss dependencies or produce incorrect results. The independence property needs formal validation against more complex schema topologies.
+This is observable in the bundled example, not just in hypothetical complex topologies: two employees in the same department share one `_deptmanager` row (the CFD `dept → manager` forces a single manager per department). Deleting one employee removes that shared row via `DELETE FROM _deptmanager WHERE dept = NEW.dept`, breaking the remaining employee. A general fix needs the independence check to cover every target table whose values can be shared across source keys, not only the MVD-determined ones.
 
-Current status: the approach works empirically for the prototype example but has not been tested or proven correct for the general case.
+Current status: demonstrated by a **strict-xfail** integration test, `test_source_delete_preserves_shared_dept_manager` in `test/test_integration.py` (runs for both examples). Remove the `xfail` marker when the independence check generalizes. A separate, now-fixed bug in this path — the full cascade deleted parent tables before their children, violating FKs — is recorded in `CHANGELOG.md`.
 
-Source: `notes/updates_and_more.sql`
+Source: `notes/updates_and_more.sql`, `src/sstc/generator.py` (`_build_source_delete_checks`)
 
 ## Inclusion dependencies
 
