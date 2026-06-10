@@ -12,6 +12,7 @@ from test.helpers import (
     SOURCE_COLUMNS,
     insert_source,
     seed_target_loop,
+    source_rows,
     target_state,
     truncate_all,
 )
@@ -701,3 +702,165 @@ def test_wrong_loop_seed_leaves_source_empty(transducer_db, schema_info):
     # _loop still has the decremented counter (not cleaned up)
     loop = transducer_db.execute("SELECT * FROM transducer._loop").fetchall()
     assert loop != []
+
+
+# --- DELETE propagation: source side (S->T) ---
+#
+# A source-side DELETE self-fires. The single source table writes one _loop
+# row (value 1) via its DELETE_JOIN function, and SOURCE_DELETE_FN's wait
+# check (loop_start = row_count, use_abs=False) is satisfied immediately --
+# no client pre-seeding is needed, unlike the multi-table target side. These
+# tests are the first live coverage of the delete chain (previously only the
+# insert chain was exercised against Postgres).
+
+
+def test_source_delete_simple_person_clears_targets(transducer_db, schema_info):
+    """Deleting a Level-0 source row removes its person/phone/email targets."""
+    insert_source(
+        transducer_db, schema_info, ssn="D1", name="Dot", phone="DP1", email="DE1"
+    )
+    assert target_state(transducer_db, schema_info)["person"] == [("D1", "Dot")]
+
+    transducer_db.execute(
+        f"DELETE FROM transducer.{schema_info.source_table} WHERE ssn = 'D1'"
+    )
+
+    state = target_state(transducer_db, schema_info)
+    assert state["person"] == []
+    assert state["phone"] == []
+    assert state["email"] == []
+    # Tracking + loop state fully reset by SOURCE_DELETE_FN cleanup.
+    assert transducer_db.execute("SELECT * FROM transducer._loop").fetchall() == []
+    assert (
+        transducer_db.execute(
+            f"SELECT * FROM transducer.{schema_info.source_table}_delete"
+        ).fetchall()
+        == []
+    )
+
+
+def test_source_delete_full_employee_clears_all_targets(transducer_db, schema_info):
+    """Deleting the sole Level-2 source row cascades to all eight target tables.
+
+    With only one source tuple, the full-independence check finds no remaining
+    row sharing the PK, so the cascade deletes from every target table.
+    """
+    manager = _self_manager(schema_info, ssn="D3", empid="DEMP3")
+    insert_source(
+        transducer_db,
+        schema_info,
+        ssn="D3",
+        empid="DEMP3",
+        name="Dora",
+        hdate="DH3",
+        phone="DP3",
+        email="DE3",
+        dept="DD3",
+        manager=manager,
+    )
+    assert target_state(transducer_db, schema_info)["dept_manager"] == [
+        ("DD3", manager)
+    ]
+
+    transducer_db.execute(
+        f"DELETE FROM transducer.{schema_info.source_table} WHERE ssn = 'D3'"
+    )
+
+    state = target_state(transducer_db, schema_info)
+    residual = {role: rows for role, rows in state.items() if rows}
+    assert residual == {}, f"target rows survived the cascade: {residual}"
+    assert transducer_db.execute("SELECT * FROM transducer._loop").fetchall() == []
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="DELETE independence generalization (open-problems.md): the source "
+    "full-cascade deletes every target row matching NEW without checking "
+    "whether a different source key still shares it, so the shared "
+    "dept_manager row is wrongly removed. Remove this marker when the "
+    "independence check generalizes beyond the MVD-determined tables.",
+)
+def test_source_delete_preserves_shared_dept_manager(transducer_db, schema_info):
+    """Independence: deleting one of two same-dept employees must keep the
+    shared dept_manager row the remaining employee still references.
+
+    Two employees share department DSHARE with the same manager (required by
+    CFD dept->manager). Deleting employee 2 should remove only employee 2's
+    own rows, leaving employee 1 and the shared dept_manager intact.
+
+    Currently xfails: the full-cascade branch of SOURCE_DELETE_FN deletes
+    ``_deptmanager WHERE dept = NEW.dept`` unconditionally, removing the row
+    employee 1 still depends on. See ``docs/notes/open-problems.md`` ->
+    "DELETE independence generalization".
+    """
+    mgr = _self_manager(schema_info, ssn="K1", empid="KMGR")
+    # Employee 1 self-manages dept DSHARE.
+    insert_source(
+        transducer_db,
+        schema_info,
+        ssn="K1",
+        empid="KMGR",
+        name="Kim",
+        hdate="KH1",
+        phone="KP1",
+        email="KE1",
+        dept="DSHARE",
+        manager=mgr,
+    )
+    # Employee 2: same dept + same manager (satisfies CFD dept->manager and
+    # INC manager subset-of empid/ssn).
+    insert_source(
+        transducer_db,
+        schema_info,
+        ssn="K2",
+        empid="KEMP2",
+        name="Kya",
+        hdate="KH2",
+        phone="KP2",
+        email="KE2",
+        dept="DSHARE",
+        manager=mgr,
+    )
+    assert ("DSHARE", mgr) in target_state(transducer_db, schema_info)["dept_manager"]
+
+    transducer_db.execute(
+        f"DELETE FROM transducer.{schema_info.source_table} WHERE ssn = 'K2'"
+    )
+
+    state = target_state(transducer_db, schema_info)
+    # Employee 2's own rows are gone.
+    assert ("K2", "Kya") not in state["person"]
+    assert ("KEMP2", "DSHARE") not in state["ped_dept"]
+    # Employee 1 and the shared department/manager survive.
+    assert ("K1", "Kim") in state["person"]
+    assert ("DSHARE", mgr) in state["dept_manager"]
+    assert transducer_db.execute("SELECT * FROM transducer._loop").fetchall() == []
+
+
+# --- DELETE propagation: target side (T->S) ---
+#
+# Mirror of the T->S insert protocol: seed _loop with N+1 (N = number of
+# target-table deletes). Each target DELETE_JOIN writes -1; when the row
+# count reaches ABS(seed), TARGET_DELETE_FN reconstructs the universal tuple
+# and deletes the matching source row. FK order requires deleting child
+# tables (phone/email) before the parent (person). The back-propagating
+# source DELETE is suppressed because _loop still holds -1 markers when it
+# fires (capture trigger's loop_check = -1).
+
+
+def test_target_delete_clears_source(transducer_db, schema_info):
+    """Deleting a Level-0 person's target rows removes the source row (T->S)."""
+    tbl = schema_info.tables
+    insert_source(
+        transducer_db, schema_info, ssn="TD1", name="Tod", phone="TDP1", email="TDE1"
+    )
+    assert len(source_rows(transducer_db, schema_info)) == 1
+
+    seed_target_loop(transducer_db, 3)
+    # Child tables before parent to satisfy the phone/email -> person FKs.
+    transducer_db.execute(f"DELETE FROM transducer.{tbl['phone']} WHERE ssn = 'TD1'")
+    transducer_db.execute(f"DELETE FROM transducer.{tbl['email']} WHERE ssn = 'TD1'")
+    transducer_db.execute(f"DELETE FROM transducer.{tbl['person']} WHERE ssn = 'TD1'")
+
+    assert source_rows(transducer_db, schema_info) == []
+    assert transducer_db.execute("SELECT * FROM transducer._loop").fetchall() == []
