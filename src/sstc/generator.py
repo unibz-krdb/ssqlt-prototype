@@ -96,8 +96,9 @@ class Generator:
                 "SCHEMA PREAMBLE",
                 "Drop and recreate the transducer schema, then create _loop, "
                 "the cycle-detection table that breaks the source<->target "
-                "feedback loop. Applying this script destroys any existing "
-                "transducer schema.",
+                "feedback loop, and seed_loop(N), the client helper that "
+                "starts an N-statement target-side transaction. Applying "
+                "this script destroys any existing transducer schema.",
                 self._preamble(),
             ),
             (

@@ -3,6 +3,10 @@ CREATE SCHEMA transducer;
 
 CREATE TABLE transducer._loop (loop_start INT NOT NULL);
 
+CREATE FUNCTION transducer.seed_loop(change_count INT)
+RETURNS VOID LANGUAGE SQL AS
+$$ INSERT INTO transducer._loop VALUES (change_count + 1); $$;
+
 
 CREATE TABLE transducer._person_source (
     ssn VARCHAR(100) NOT NULL,    empid VARCHAR(100),    name VARCHAR(100) NOT NULL,    hdate VARCHAR(100),    phone VARCHAR(100) NOT NULL,    email VARCHAR(100) NOT NULL,    dept VARCHAR(100),    manager VARCHAR(100),    PRIMARY KEY (ssn, phone, email)

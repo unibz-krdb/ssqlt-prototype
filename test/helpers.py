@@ -108,12 +108,13 @@ def target_state(db, schema_info: SchemaInfo) -> dict[str, list[tuple]]:
 
 
 def seed_target_loop(db, n_target_inserts: int) -> None:
-    """Seed the _loop table for a T->S propagation with N expected inserts.
+    """Seed the _loop table for a T->S propagation with N expected statements.
 
-    The target capture triggers each write -1 to _loop; when the row count
-    reaches ABS(seed), TARGET_INSERT_FN fires. Protocol: seed = N + 1.
+    Delegates to the generated ``transducer.seed_loop`` helper, which owns
+    the seed arithmetic (the target join functions each write -1 to _loop;
+    the mapping fires when the row count reaches ABS(seed)).
     """
-    db.execute("INSERT INTO transducer._loop VALUES (%s)", (n_target_inserts + 1,))
+    db.execute("SELECT transducer.seed_loop(%s)", (n_target_inserts,))
 
 
 def loop_rows(db) -> list[tuple]:

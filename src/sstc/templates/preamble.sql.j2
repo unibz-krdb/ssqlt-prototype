@@ -11,3 +11,14 @@ CREATE SCHEMA {{ schema }};
 -- a source change from echoing back through the target (and vice versa) forever.
 {% endif %}
 CREATE TABLE {{ schema }}._loop (loop_start INT NOT NULL);
+
+{% if comments %}
+-- Client protocol for target-side transactions: call seed_loop(N) before the
+-- first of N INSERT/DELETE statements on target tables in the transaction.
+-- The mapping fires once the ledger row count reaches the seeded value, i.e.
+-- after all N statements have been captured. Source-side changes self-fire
+-- and need no seeding.
+{% endif %}
+CREATE FUNCTION {{ schema }}.seed_loop(change_count INT)
+RETURNS VOID LANGUAGE SQL AS
+$$ INSERT INTO {{ schema }}._loop VALUES (change_count + 1); $$;

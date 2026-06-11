@@ -66,6 +66,14 @@ def test_preamble(example_1_gen):
     assert "loop_start" in preamble
 
 
+def test_preamble_emits_seed_loop_helper(example_1_gen):
+    """The seed arithmetic (seed = N + 1) is a compiler detail; clients call
+    seed_loop(N) instead of hand-writing the _loop insert."""
+    preamble = example_1_gen._preamble()
+    assert "CREATE FUNCTION transducer.seed_loop(change_count INT)" in preamble
+    assert "VALUES (change_count + 1)" in preamble
+
+
 def test_base_tables(example_1_gen):
     result = example_1_gen._base_tables()
 
