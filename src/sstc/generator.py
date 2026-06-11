@@ -156,6 +156,15 @@ class Generator:
                 "row still derives.",
                 self._mapping(),
             ),
+            (
+                "SYNC VERIFICATION",
+                "check_sync() reconstructs the universal relation from the "
+                "target tables and returns its symmetric difference against "
+                "the source table. An empty result means both databases "
+                "encode the same instance; rows are labelled with the side "
+                "they are missing from.",
+                self._verification(),
+            ),
         ]
         rendered = []
         for num, (title, description, sql) in enumerate(sections, 1):
@@ -544,6 +553,23 @@ class Generator:
         )
 
         return "\n\n".join(parts)
+
+    def _verification(self) -> str:
+        """Generate the check_sync() instance-level sync probe.
+
+        Compares the source table against the NATURAL LEFT OUTER JOIN
+        reconstruction of the target tables via two EXCEPTs (set operations
+        treat NULLs as equal, so partially-NULL URA tuples diff correctly).
+        Emitted after the base tables because SQL-language function bodies
+        are validated at CREATE time.
+        """
+        return self._render(
+            "check_sync.sql.j2",
+            source_table=self.ctx.source.ordered_tables[0].name,
+            target_tables=[t.name for t in self.ctx.target.ordered_tables],
+            universal_columns=self._universal_columns(),
+            universal_col_names=self._universal_col_names(),
+        )
 
     def _build_source_delete_sweeps(
         self, source: Context, target: Context

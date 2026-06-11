@@ -5,6 +5,8 @@ Tests using ``transducer_db`` / ``schema_info`` run once per parametrized exampl
 remain example1-specific via an inline skip.
 """
 
+import random
+
 import psycopg.errors
 import pytest
 
@@ -13,6 +15,7 @@ from test.helpers import (
     insert_source,
     seed_target_loop,
     source_rows,
+    sync_diff,
     target_state,
     truncate_all,
 )
@@ -963,3 +966,113 @@ def test_target_delete_clears_source(transducer_db, schema_info):
 
     assert source_rows(transducer_db, schema_info) == []
     assert transducer_db.execute("SELECT * FROM transducer._loop").fetchall() == []
+
+
+# --- Sync verification (check_sync) ---
+#
+# check_sync() returns the symmetric difference between the source table and
+# the NATURAL LEFT OUTER JOIN reconstruction of the target tables. Empty
+# result = both databases encode the same instance. It is an instance-level
+# probe (a necessary condition for losslessness), not a schema-level proof.
+
+
+def test_check_sync_empty_after_propagation_and_delete(transducer_db, schema_info):
+    """The probe reports no diff after mixed-level inserts nor after a delete."""
+    mgr = _self_manager(schema_info, ssn="Y1", empid="YMGR")
+    insert_source(
+        transducer_db,
+        schema_info,
+        ssn="Y1",
+        empid="YMGR",
+        name="Yan",
+        hdate="YH1",
+        phone="YP1",
+        email="YE1",
+        dept="YD",
+        manager=mgr,
+    )
+    insert_source(
+        transducer_db, schema_info, ssn="Y2", name="Yu", phone="YP2", email="YE2"
+    )
+    assert sync_diff(transducer_db) == []
+
+    transducer_db.execute(
+        f"DELETE FROM transducer.{schema_info.source_table} WHERE ssn = 'Y2'"
+    )
+    assert sync_diff(transducer_db) == []
+
+
+def test_check_sync_detects_manual_desync(transducer_db, schema_info):
+    """An orphan row injected behind the triggers' back is reported, labelled
+    with the side it is missing from."""
+    insert_source(
+        transducer_db, schema_info, ssn="Z1", name="Zoe", phone="ZP1", email="ZE1"
+    )
+    assert sync_diff(transducer_db) == []
+
+    # session_replication_role=replica disables the capture triggers, so the
+    # row reaches the target table without propagating to the source.
+    transducer_db.execute("SET session_replication_role = replica")
+    try:
+        transducer_db.execute(
+            f"INSERT INTO transducer.{schema_info.tables['person']} "
+            f"VALUES ('ZX', 'Ghost')"
+        )
+    finally:
+        transducer_db.execute("SET session_replication_role = DEFAULT")
+
+    diff = sync_diff(transducer_db)
+    assert any(row[0] == "missing-in-source" and row[1] == "ZX" for row in diff), (
+        f"ghost row not reported: {diff}"
+    )
+    # The synced person Z1 must not be flagged.
+    assert not any(row[1] == "Z1" for row in diff)
+
+
+def test_random_round_trip_stays_in_sync(transducer_db, schema_info):
+    """Seeded-random instance: mixed guard levels in, random sample deleted,
+    check_sync() empty at every stage (deterministic via Random(42))."""
+    rng = random.Random(42)
+    # Two level-1 bosses anchor the manager INC (manager ⊆ empid/ssn) and the
+    # CFD dept→manager (one fixed manager per department).
+    bosses = {"DA": ("B1", "BE1"), "DB": ("B2", "BE2")}
+    for dept, (ssn, empid) in bosses.items():
+        insert_source(
+            transducer_db,
+            schema_info,
+            ssn=ssn,
+            empid=empid,
+            name=f"Boss{ssn}",
+            hdate=f"H{ssn}",
+            phone=f"P{ssn}",
+            email=f"M{ssn}",
+        )
+
+    people = []
+    for i in range(12):
+        ssn = f"R{i}"
+        cols = dict(ssn=ssn, name=f"Name{i}", phone=f"Ph{i}", email=f"Em{i}")
+        level = rng.choice([0, 1, 2])
+        if level >= 1:
+            cols.update(empid=f"RE{i}", hdate=f"RH{i}")
+        if level == 2:
+            dept = rng.choice(sorted(bosses))
+            boss_ssn, boss_empid = bosses[dept]
+            cols.update(
+                dept=dept,
+                manager=_self_manager(schema_info, ssn=boss_ssn, empid=boss_empid),
+            )
+        insert_source(transducer_db, schema_info, **cols)
+        people.append(ssn)
+
+    assert sync_diff(transducer_db) == []
+
+    victims = rng.sample(people, 6)
+    transducer_db.execute(
+        f"DELETE FROM transducer.{schema_info.source_table} WHERE ssn = ANY(%s)",
+        (victims,),
+    )
+
+    assert sync_diff(transducer_db) == []
+    remaining = {row[0] for row in source_rows(transducer_db, schema_info)}
+    assert remaining == (set(people) - set(victims)) | {"B1", "B2"}

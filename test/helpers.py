@@ -122,6 +122,15 @@ def loop_rows(db) -> list[tuple]:
     return db.execute("SELECT * FROM transducer._loop").fetchall()
 
 
+def sync_diff(db) -> list[tuple]:
+    """Rows where source and target reconstructions disagree (empty = in sync).
+
+    Each row is (side, *universal columns); side is 'missing-in-target' or
+    'missing-in-source'. Wraps the generated ``transducer.check_sync()``.
+    """
+    return db.execute("SELECT * FROM transducer.check_sync()").fetchall()
+
+
 def dump_state(db, schema_info: SchemaInfo) -> str:
     """Multi-line dump of source + all targets + _loop; used by failure hook."""
     lines = [f"=== schema: {schema_info.example} ==="]

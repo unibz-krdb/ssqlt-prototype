@@ -41,8 +41,9 @@ def _assert_compile_structure(sql: str):
     create_count = sql.count("CREATE TABLE transducer.")
     assert create_count == 46, f"Expected 46 CREATE TABLE, got {create_count}"
 
+    # 56 trigger/mapping functions + check_sync (section 9)
     fn_count = sql.count("CREATE OR REPLACE FUNCTION")
-    assert fn_count == 56, f"Expected 56 functions, got {fn_count}"
+    assert fn_count == 57, f"Expected 57 functions, got {fn_count}"
 
     trigger_count = sql.count("CREATE TRIGGER") + sql.count("CREATE CONSTRAINT TRIGGER")
     assert trigger_count == 70, f"Expected 70 triggers, got {trigger_count}"
@@ -64,6 +65,18 @@ def test_preamble(example_1_gen):
     assert "CREATE SCHEMA transducer" in preamble
     assert "CREATE TABLE transducer._loop" in preamble
     assert "loop_start" in preamble
+
+
+def test_verification_emits_check_sync(example_1_gen):
+    """Section 9: symmetric difference between the source table and the
+    target-table reconstruction, in UniversalMapping join order."""
+    sql = example_1_gen._verification()
+    assert "CREATE OR REPLACE FUNCTION transducer.check_sync()" in sql
+    assert "'missing-in-target'" in sql and "'missing-in-source'" in sql
+    assert sql.count("EXCEPT") == 2
+    # Reconstruction starts at the mapping root and joins every target table.
+    assert "FROM transducer._person" in sql
+    assert sql.count("NATURAL LEFT OUTER JOIN transducer._deptmanager") == 2
 
 
 def test_preamble_emits_seed_loop_helper(example_1_gen):

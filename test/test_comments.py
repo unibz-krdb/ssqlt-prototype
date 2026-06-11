@@ -27,7 +27,7 @@ def _example_paths(name: str) -> list[str]:
     ]
 
 
-# The eight pipeline-section banner titles, in dependency order. Each must
+# The nine pipeline-section banner titles, in dependency order. Each must
 # surface as a banner header line when comments are enabled.
 SECTION_TITLES = [
     "SCHEMA PREAMBLE",
@@ -38,6 +38,7 @@ SECTION_TITLES = [
     "CHANGE TRACKING",
     "JOIN STAGING",
     "BIDIRECTIONAL MAPPING",
+    "SYNC VERIFICATION",
 ]
 
 

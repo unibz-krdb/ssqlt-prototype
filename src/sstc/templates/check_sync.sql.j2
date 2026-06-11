@@ -1,0 +1,40 @@
+{% if comments %}
+-- check_sync(): instance-level sync probe. Reconstructs the universal
+-- relation from the target tables (NATURAL LEFT OUTER JOIN in mapping order)
+-- and returns its symmetric difference against the source table. An empty
+-- result means both databases currently encode the same instance; each
+-- returned row is labelled with the side it is missing from. EXCEPT compares
+-- NULLs as equal, so partially-NULL (URA) tuples diff correctly. Note: an
+-- empty diff is a necessary condition for losslessness, not a proof of it.
+{% endif %}
+CREATE OR REPLACE FUNCTION {{ schema }}.check_sync()
+RETURNS TABLE(
+    side TEXT{% for col in universal_columns %},
+    {{ col.name }} {{ col.data_type }}{% endfor %}
+
+)
+LANGUAGE SQL AS $$
+    SELECT 'missing-in-target'::TEXT AS side, *
+    FROM (
+        SELECT {{ universal_col_names | join(', ') }}
+        FROM {{ schema }}._{{ source_table }}
+        EXCEPT
+        SELECT {{ universal_col_names | join(', ') }}
+        FROM {{ schema }}._{{ target_tables[0] }}
+{% for tbl in target_tables[1:] %}
+        NATURAL LEFT OUTER JOIN {{ schema }}._{{ tbl }}
+{% endfor %}
+    ) AS missing_in_target
+    UNION ALL
+    SELECT 'missing-in-source'::TEXT AS side, *
+    FROM (
+        SELECT {{ universal_col_names | join(', ') }}
+        FROM {{ schema }}._{{ target_tables[0] }}
+{% for tbl in target_tables[1:] %}
+        NATURAL LEFT OUTER JOIN {{ schema }}._{{ tbl }}
+{% endfor %}
+        EXCEPT
+        SELECT {{ universal_col_names | join(', ') }}
+        FROM {{ schema }}._{{ source_table }}
+    ) AS missing_in_source
+$$;

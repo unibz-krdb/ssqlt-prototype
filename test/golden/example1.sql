@@ -2096,3 +2096,50 @@ CREATE TRIGGER TARGET_DELETE_FN_trigger_deptmanager
 AFTER INSERT ON transducer._deptmanager_DELETE_JOIN
 FOR EACH ROW
 EXECUTE FUNCTION transducer.TARGET_DELETE_FN();
+
+
+CREATE OR REPLACE FUNCTION transducer.check_sync()
+RETURNS TABLE(
+    side TEXT,
+    ssn VARCHAR(100),
+    empid VARCHAR(100),
+    name VARCHAR(100),
+    hdate VARCHAR(100),
+    phone VARCHAR(100),
+    email VARCHAR(100),
+    dept VARCHAR(100),
+    manager VARCHAR(100)
+)
+LANGUAGE SQL AS $$
+    SELECT 'missing-in-target'::TEXT AS side, *
+    FROM (
+        SELECT ssn, empid, name, hdate, phone, email, dept, manager
+        FROM transducer._person_source
+        EXCEPT
+        SELECT ssn, empid, name, hdate, phone, email, dept, manager
+        FROM transducer._person
+        NATURAL LEFT OUTER JOIN transducer._personphone
+        NATURAL LEFT OUTER JOIN transducer._personemail
+        NATURAL LEFT OUTER JOIN transducer._employee
+        NATURAL LEFT OUTER JOIN transducer._employeedate
+        NATURAL LEFT OUTER JOIN transducer._ped
+        NATURAL LEFT OUTER JOIN transducer._peddept
+        NATURAL LEFT OUTER JOIN transducer._deptmanager
+    ) AS missing_in_target
+    UNION ALL
+    SELECT 'missing-in-source'::TEXT AS side, *
+    FROM (
+        SELECT ssn, empid, name, hdate, phone, email, dept, manager
+        FROM transducer._person
+        NATURAL LEFT OUTER JOIN transducer._personphone
+        NATURAL LEFT OUTER JOIN transducer._personemail
+        NATURAL LEFT OUTER JOIN transducer._employee
+        NATURAL LEFT OUTER JOIN transducer._employeedate
+        NATURAL LEFT OUTER JOIN transducer._ped
+        NATURAL LEFT OUTER JOIN transducer._peddept
+        NATURAL LEFT OUTER JOIN transducer._deptmanager
+        EXCEPT
+        SELECT ssn, empid, name, hdate, phone, email, dept, manager
+        FROM transducer._person_source
+    ) AS missing_in_source
+$$;
