@@ -1,6 +1,11 @@
+import json
+
 import pytest
 
-from sstc.constraints import inc_sql
+from sstc import TransducerContext
+from sstc.constraints import UnsupportedError, inc_sql
+from sstc.context import Context, Direction
+from sstc.generator import Generator
 from sstc.guard import (
     GuardHierarchy,
     GuardLevel,
@@ -724,3 +729,63 @@ def test_inc_sql(example_1_gen, example_1_ctx, context_attr, expect_empty):
         assert "check_person_source_inc_1_fn" in result
         assert "BEFORE INSERT" in result
         assert "EXCEPT" in result
+
+
+# --- compile() validation, dead-branch, and schema-name propagation ---
+
+
+def _two_table_source_ctx(tmp_path):
+    """A source Context with two tables (multi-source) parsed from inline RA."""
+    schema_path = tmp_path / "universal.json"
+    schema_path.write_text(
+        json.dumps(
+            [
+                {"name": "a", "data_type": "VARCHAR(100)", "is_nullable": False},
+                {"name": "b", "data_type": "VARCHAR(100)", "is_nullable": True},
+                {"name": "c", "data_type": "VARCHAR(100)", "is_nullable": True},
+            ]
+        )
+    )
+    ra_path = tmp_path / "source.txt"
+    ra_path.write_text(
+        "R1 := \\project_{a, b} Universal;\n"
+        "R2 := \\project_{a, c} Universal;\n"
+        "pk_{a} R1;\n"
+        "pk_{a} R2;\n"
+        "UniversalMapping := \\project_{a, b, c} (R1 \\natural_join R2);\n"
+    )
+    return Context.from_file(str(schema_path), str(ra_path), Direction.SOURCE)
+
+
+def test_compile_rejects_multi_source_table(tmp_path):
+    """compile() raises UnsupportedError when the source context has != 1 table."""
+    src = _two_table_source_ctx(tmp_path)
+    assert len(src.tables) == 2  # precondition: two source tables parsed
+    with pytest.raises(UnsupportedError, match="Expected exactly 1 source table"):
+        Generator(TransducerContext(source=src, target=src)).compile()
+
+
+def test_build_target_delete_checks_multi_source_arm(tmp_path):
+    """Directly cover the multi-source branch of _build_target_delete_checks.
+
+    compile() rejects >1 source table, so this branch is unreachable end-to-end;
+    a direct call is the only way to exercise the per-dependent-table checks.
+    """
+    src = _two_table_source_ctx(tmp_path)
+    gen = Generator(TransducerContext(source=src, target=src))
+
+    checks = gen._build_target_delete_checks(src)
+
+    # One check per dependent (non-main) source table, each with a dependent delete.
+    assert len(checks) == len(src.tables) - 1
+    assert all(c["dependent_deletes"] for c in checks)
+
+
+def test_compile_propagates_custom_schema_name(example_1_ctx):
+    """A non-default schema= must replace every schema-qualified reference;
+    no 'transducer.'-qualified object may leak through."""
+    sql = Generator(example_1_ctx, schema="xfoo").compile()
+
+    assert "xfoo._loop" in sql  # preamble + objects use the custom schema
+    assert "xfoo._person_source" in sql
+    assert "transducer." not in sql  # no leak of the default schema name

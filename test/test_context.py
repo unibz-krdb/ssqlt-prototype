@@ -153,3 +153,22 @@ def test_from_file_rejects_universal_mapping_missing_declared_table(tmp_path):
     )
     with pytest.raises(ValueError, match="UniversalMapping tables"):
         Context.from_file(str(schema_path), str(ra_path), Direction.SOURCE)
+
+
+def test_from_file_rejects_missing_universal_mapping(tmp_path):
+    """A relational algebra file with no UniversalMapping assignment must raise."""
+    schema_path = tmp_path / "universal.json"
+    schema_path.write_text(
+        json.dumps(
+            [
+                {"name": "ssn", "data_type": "VARCHAR(100)", "is_nullable": False},
+                {"name": "name", "data_type": "VARCHAR(100)", "is_nullable": False},
+            ]
+        )
+    )
+    ra_path = tmp_path / "source.txt"
+    ra_path.write_text(
+        "T1 := \\project_{ssn, name} Universal;\npk_{ssn} T1;\n"  # no UniversalMapping
+    )
+    with pytest.raises(ValueError, match="UniversalMapping is not defined"):
+        Context.from_file(str(schema_path), str(ra_path), Direction.SOURCE)
