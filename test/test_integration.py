@@ -742,8 +742,8 @@ def test_source_delete_simple_person_clears_targets(transducer_db, schema_info):
 def test_source_delete_full_employee_clears_all_targets(transducer_db, schema_info):
     """Deleting the sole Level-2 source row cascades to all eight target tables.
 
-    With only one source tuple, the full-independence check finds no remaining
-    row sharing the PK, so the cascade deletes from every target table.
+    With only one source tuple, no target row retains a witness in the source
+    table, so the orphan sweep empties every target table.
     """
     manager = _self_manager(schema_info, ssn="D3", empid="DEMP3")
     insert_source(
@@ -772,14 +772,6 @@ def test_source_delete_full_employee_clears_all_targets(transducer_db, schema_in
     assert transducer_db.execute("SELECT * FROM transducer._loop").fetchall() == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="DELETE independence generalization (open-problems.md): the source "
-    "full-cascade deletes every target row matching NEW without checking "
-    "whether a different source key still shares it, so the shared "
-    "dept_manager row is wrongly removed. Remove this marker when the "
-    "independence check generalizes beyond the MVD-determined tables.",
-)
 def test_source_delete_preserves_shared_dept_manager(transducer_db, schema_info):
     """Independence: deleting one of two same-dept employees must keep the
     shared dept_manager row the remaining employee still references.
@@ -788,10 +780,9 @@ def test_source_delete_preserves_shared_dept_manager(transducer_db, schema_info)
     CFD dept->manager). Deleting employee 2 should remove only employee 2's
     own rows, leaving employee 1 and the shared dept_manager intact.
 
-    Currently xfails: the full-cascade branch of SOURCE_DELETE_FN deletes
-    ``_deptmanager WHERE dept = NEW.dept`` unconditionally, removing the row
-    employee 1 still depends on. See ``docs/notes/open-problems.md`` ->
-    "DELETE independence generalization".
+    SOURCE_DELETE_FN's orphan sweep keeps a target row while any remaining
+    source row still projects onto it, so the shared ``_deptmanager`` row
+    survives via employee 1's witness row.
     """
     mgr = _self_manager(schema_info, ssn="K1", empid="KMGR")
     # Employee 1 self-manages dept DSHARE.
@@ -834,6 +825,114 @@ def test_source_delete_preserves_shared_dept_manager(transducer_db, schema_info)
     # Employee 1 and the shared department/manager survive.
     assert ("K1", "Kim") in state["person"]
     assert ("DSHARE", mgr) in state["dept_manager"]
+    assert transducer_db.execute("SELECT * FROM transducer._loop").fetchall() == []
+
+
+def test_source_delete_partial_mvd_row_preserves_shared_pairs(
+    transducer_db, schema_info
+):
+    """Deleting one row of an MVD cross-product must keep every (ssn, phone)
+    and (ssn, email) pair another source row still carries.
+
+    Only example2 admits several source rows per person (PK ssn+phone+email);
+    in example1 ssn alone is the PK, so the scenario is unreachable there.
+
+    Two inserts with disjoint phone/email get grounded to the full 2x2
+    cross-product (4 source rows). Deleting exactly one of them leaves a
+    witness for every pair, so the orphan sweep must delete *nothing* from
+    the targets — the old per-MVD EXCEPT checks wrongly removed the deleted
+    row's (ssn, phone) and (ssn, email) pairs here.
+    """
+    if schema_info.example != "example2":
+        pytest.skip("example2-only: needs multiple source rows per ssn")
+    insert_source(
+        transducer_db, schema_info, ssn="M1", name="Mia", phone="MP1", email="ME1"
+    )
+    insert_source(
+        transducer_db, schema_info, ssn="M1", name="Mia", phone="MP2", email="ME2"
+    )
+    # MVD grounding completed the cross-product: 4 source rows.
+    assert len(source_rows(transducer_db, schema_info)) == 4
+
+    transducer_db.execute(
+        f"DELETE FROM transducer.{schema_info.source_table} "
+        f"WHERE ssn = 'M1' AND phone = 'MP2' AND email = 'ME2'"
+    )
+
+    state = target_state(transducer_db, schema_info)
+    # Every pair still has a witness among the 3 remaining rows.
+    assert set(state["phone"]) == {("M1", "MP1"), ("M1", "MP2")}
+    assert set(state["email"]) == {("M1", "ME1"), ("M1", "ME2")}
+    assert state["person"] == [("M1", "Mia")]
+    assert transducer_db.execute("SELECT * FROM transducer._loop").fetchall() == []
+
+
+def test_source_delete_multi_row_statement_preserves_shared_rows(
+    transducer_db, schema_info
+):
+    """One DELETE statement removing two employees runs one full cascade per
+    row; the sweeps must stay FK-safe across cascades and still preserve the
+    dept_manager row a surviving third employee references."""
+    mgr = _self_manager(schema_info, ssn="W1", empid="WMGR")
+    # W1 self-manages dept WD; W2 and W3 work in WD under the same manager.
+    for ssn, empid, name in [
+        ("W1", "WMGR", "Wes"),
+        ("W2", "WEMP2", "Wyn"),
+        ("W3", "WEMP3", "Wim"),
+    ]:
+        insert_source(
+            transducer_db,
+            schema_info,
+            ssn=ssn,
+            empid=empid,
+            name=name,
+            hdate=f"WH{ssn[-1]}",
+            phone=f"WP{ssn[-1]}",
+            email=f"WE{ssn[-1]}",
+            dept="WD",
+            manager=mgr,
+        )
+    assert ("WD", mgr) in target_state(transducer_db, schema_info)["dept_manager"]
+
+    transducer_db.execute(
+        f"DELETE FROM transducer.{schema_info.source_table} WHERE ssn IN ('W2', 'W3')"
+    )
+
+    state = target_state(transducer_db, schema_info)
+    names = {row[0] for row in state["person"]}
+    assert "W2" not in names and "W3" not in names
+    assert "W1" in names
+    assert ("WD", mgr) in state["dept_manager"]
+    assert transducer_db.execute("SELECT * FROM transducer._loop").fetchall() == []
+
+
+def test_source_delete_full_mvd_person_in_one_statement(transducer_db, schema_info):
+    """Deleting an entire multi-row person (the grounded 2x2 cross-product) in
+    one statement must clear every target row without FK violations.
+
+    This is the batch-independence claim: each of the 4 deleted rows runs its
+    own cascade, and the first cascade's sweep already removes all orphaned
+    child rows (phones/emails) before the parent person row, so no cascade
+    ever deletes a parent that a sibling row's child still references.
+    """
+    if schema_info.example != "example2":
+        pytest.skip("example2-only: needs multiple source rows per ssn")
+    insert_source(
+        transducer_db, schema_info, ssn="N1", name="Nia", phone="NP1", email="NE1"
+    )
+    insert_source(
+        transducer_db, schema_info, ssn="N1", name="Nia", phone="NP2", email="NE2"
+    )
+    assert len(source_rows(transducer_db, schema_info)) == 4
+
+    transducer_db.execute(
+        f"DELETE FROM transducer.{schema_info.source_table} WHERE ssn = 'N1'"
+    )
+
+    assert source_rows(transducer_db, schema_info) == []
+    state = target_state(transducer_db, schema_info)
+    residual = {role: rows for role, rows in state.items() if rows}
+    assert residual == {}, f"target rows survived the batch delete: {residual}"
     assert transducer_db.execute("SELECT * FROM transducer._loop").fetchall() == []
 
 

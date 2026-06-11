@@ -276,9 +276,34 @@ def test_target_insert_mapping_uses_loop_constant(example_1_gen):
 def test_source_delete_mapping(example_1_gen):
     result = example_1_gen._mapping()
 
-    # Source delete function
+    # Source delete function: per-target orphan sweeps with NULL-safe witness
     assert "SOURCE_DELETE_FN" in result
-    assert "EXCEPT" in result
+    assert "NOT EXISTS (SELECT 1 FROM transducer._person_source AS s" in result
+    assert "s.ssn IS NOT DISTINCT FROM t.ssn" in result
+
+
+def test_source_delete_sweeps_children_before_parents(example_1_gen):
+    """Sweeps run in reverse UniversalMapping order so child FKs never dangle."""
+    sweeps = example_1_gen._build_source_delete_sweeps(
+        example_1_gen.ctx.source, example_1_gen.ctx.target
+    )
+    order = [s["table"] for s in sweeps]
+    assert order.index("deptmanager") < order.index("person")
+    assert order.index("personphone") < order.index("person")
+
+
+def test_source_delete_sweep_witness_includes_guards(example_1_gen):
+    """A witness row must satisfy the target table's guard, not just match
+    the projected attributes (e.g. _employee requires hdate defined even
+    though hdate is not one of its columns)."""
+    sweeps = example_1_gen._build_source_delete_sweeps(
+        example_1_gen.ctx.source, example_1_gen.ctx.target
+    )
+    by_table = {s["table"]: s["witness_condition"] for s in sweeps}
+    assert "s.hdate IS NOT NULL" in by_table["employee"]
+    assert "s.manager IS NOT NULL" in by_table["deptmanager"]
+    # Unguarded tables carry no guard conjuncts.
+    assert "IS NOT NULL" not in by_table["person"]
 
 
 def test_target_delete_mapping(example_1_gen):
@@ -779,6 +804,47 @@ def test_build_target_delete_checks_multi_source_arm(tmp_path):
     # One check per dependent (non-main) source table, each with a dependent delete.
     assert len(checks) == len(src.tables) - 1
     assert all(c["dependent_deletes"] for c in checks)
+
+
+def _mismatched_attr_ctxs(tmp_path):
+    """Source/target Contexts where the target projects an attribute (c)
+    the source table does not carry."""
+    schema_path = tmp_path / "universal.json"
+    schema_path.write_text(
+        json.dumps(
+            [
+                {"name": "a", "data_type": "VARCHAR(100)", "is_nullable": False},
+                {"name": "b", "data_type": "VARCHAR(100)", "is_nullable": True},
+                {"name": "c", "data_type": "VARCHAR(100)", "is_nullable": True},
+            ]
+        )
+    )
+    src_path = tmp_path / "source.txt"
+    src_path.write_text(
+        "R1 := \\project_{a, b} Universal;\n"
+        "pk_{a} R1;\n"
+        "UniversalMapping := \\project_{a, b} R1;\n"
+    )
+    tgt_path = tmp_path / "target.txt"
+    tgt_path.write_text(
+        "T1 := \\project_{a, c} Universal;\n"
+        "pk_{a} T1;\n"
+        "UniversalMapping := \\project_{a, c} T1;\n"
+    )
+    return (
+        Context.from_file(str(schema_path), str(src_path), Direction.SOURCE),
+        Context.from_file(str(schema_path), str(tgt_path), Direction.TARGET),
+    )
+
+
+def test_source_delete_sweeps_reject_attr_missing_from_source(tmp_path):
+    """The orphan sweep needs every target attribute on the source table to
+    build a witness query; a missing attribute must fail at compile time, not
+    as an unknown-column error at install time."""
+    src, tgt = _mismatched_attr_ctxs(tmp_path)
+    gen = Generator(TransducerContext(source=src, target=tgt))
+    with pytest.raises(UnsupportedError, match="does not carry"):
+        gen._build_source_delete_sweeps(src, tgt)
 
 
 def test_compile_propagates_custom_schema_name(example_1_ctx):

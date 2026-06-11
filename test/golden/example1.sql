@@ -1946,30 +1946,30 @@ BEGIN
         RETURN NULL;
     END IF;
 
-    IF EXISTS (SELECT * FROM transducer._person_source WHERE ssn = NEW.ssn
-        EXCEPT (SELECT * FROM transducer._person_source WHERE ssn = NEW.ssn AND phone = NEW.phone)) THEN
-        DELETE FROM transducer._personphone WHERE (ssn, phone) IN
-            (SELECT ssn, phone FROM transducer._person_source_DELETE_JOIN
-            );
-    END IF;
-    IF EXISTS (SELECT * FROM transducer._person_source WHERE ssn = NEW.ssn
-        EXCEPT (SELECT * FROM transducer._person_source WHERE ssn = NEW.ssn AND email = NEW.email)) THEN
-        DELETE FROM transducer._personemail WHERE (ssn, email) IN
-            (SELECT ssn, email FROM transducer._person_source_DELETE_JOIN
-            );
-    END IF;
-
-    IF NOT EXISTS (SELECT * FROM transducer._person_source WHERE ssn = NEW.ssn
-        EXCEPT (SELECT * FROM transducer._person_source WHERE ssn = NEW.ssn AND empid = NEW.empid AND name = NEW.name AND hdate = NEW.hdate AND phone = NEW.phone AND email = NEW.email AND dept = NEW.dept AND manager = NEW.manager)) THEN
-        DELETE FROM transducer._deptmanager WHERE dept = NEW.dept;
-        DELETE FROM transducer._peddept WHERE empid = NEW.empid;
-        DELETE FROM transducer._ped WHERE empid = NEW.empid;
-        DELETE FROM transducer._employeedate WHERE empid = NEW.empid;
-        DELETE FROM transducer._employee WHERE empid = NEW.empid;
-        DELETE FROM transducer._personemail WHERE ssn = NEW.ssn AND email = NEW.email;
-        DELETE FROM transducer._personphone WHERE ssn = NEW.ssn AND phone = NEW.phone;
-        DELETE FROM transducer._person WHERE ssn = NEW.ssn;
-    END IF;
+    DELETE FROM transducer._deptmanager AS t
+        WHERE NOT EXISTS (SELECT 1 FROM transducer._person_source AS s
+            WHERE s.dept IS NOT DISTINCT FROM t.dept AND s.manager IS NOT DISTINCT FROM t.manager AND s.empid IS NOT NULL AND s.hdate IS NOT NULL AND s.dept IS NOT NULL AND s.manager IS NOT NULL);
+    DELETE FROM transducer._peddept AS t
+        WHERE NOT EXISTS (SELECT 1 FROM transducer._person_source AS s
+            WHERE s.empid IS NOT DISTINCT FROM t.empid AND s.dept IS NOT DISTINCT FROM t.dept AND s.empid IS NOT NULL AND s.hdate IS NOT NULL AND s.dept IS NOT NULL AND s.manager IS NOT NULL);
+    DELETE FROM transducer._ped AS t
+        WHERE NOT EXISTS (SELECT 1 FROM transducer._person_source AS s
+            WHERE s.ssn IS NOT DISTINCT FROM t.ssn AND s.empid IS NOT DISTINCT FROM t.empid AND s.empid IS NOT NULL AND s.hdate IS NOT NULL AND s.dept IS NOT NULL AND s.manager IS NOT NULL);
+    DELETE FROM transducer._employeedate AS t
+        WHERE NOT EXISTS (SELECT 1 FROM transducer._person_source AS s
+            WHERE s.empid IS NOT DISTINCT FROM t.empid AND s.hdate IS NOT DISTINCT FROM t.hdate AND s.empid IS NOT NULL AND s.hdate IS NOT NULL);
+    DELETE FROM transducer._employee AS t
+        WHERE NOT EXISTS (SELECT 1 FROM transducer._person_source AS s
+            WHERE s.ssn IS NOT DISTINCT FROM t.ssn AND s.empid IS NOT DISTINCT FROM t.empid AND s.empid IS NOT NULL AND s.hdate IS NOT NULL);
+    DELETE FROM transducer._personemail AS t
+        WHERE NOT EXISTS (SELECT 1 FROM transducer._person_source AS s
+            WHERE s.ssn IS NOT DISTINCT FROM t.ssn AND s.email IS NOT DISTINCT FROM t.email);
+    DELETE FROM transducer._personphone AS t
+        WHERE NOT EXISTS (SELECT 1 FROM transducer._person_source AS s
+            WHERE s.ssn IS NOT DISTINCT FROM t.ssn AND s.phone IS NOT DISTINCT FROM t.phone);
+    DELETE FROM transducer._person AS t
+        WHERE NOT EXISTS (SELECT 1 FROM transducer._person_source AS s
+            WHERE s.ssn IS NOT DISTINCT FROM t.ssn AND s.name IS NOT DISTINCT FROM t.name);
 
     DELETE FROM transducer._person_source_DELETE;
     DELETE FROM transducer._person_source_DELETE_JOIN;

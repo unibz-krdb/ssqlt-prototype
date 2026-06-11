@@ -150,8 +150,9 @@ class Generator:
                 "The four mapping functions (SOURCE/TARGET x INSERT/DELETE). Each "
                 "reads the JOIN staging, projects universal tuples into the "
                 "opposite context, and clears tracking state. Inserts use "
-                "containment pruning and null-pattern filtering; deletes use MVD "
-                "independence checks.",
+                "containment pruning and null-pattern filtering; source-side "
+                "deletes sweep each target table for rows no remaining source "
+                "row still derives.",
                 self._mapping(),
             ),
         ]
@@ -400,8 +401,9 @@ class Generator:
         and TARGET_DELETE_FN. Each function reads from join staging tables,
         applies the appropriate mapping (project universal tuples into the
         opposite context's tables), and cleans up tracking state. Insert
-        mappings use containment pruning and null-pattern filtering;
-        delete mappings use MVD independence checks.
+        mappings use containment pruning and null-pattern filtering; the
+        source delete mapping sweeps each target table for orphans, and the
+        target delete mapping uses full-tuple independence checks.
         """
         parts = []
         source = self.ctx.source
@@ -497,14 +499,14 @@ class Generator:
         )
 
         # --- SOURCE_DELETE_FN ---
-        mvd_checks = self._build_source_delete_checks(source, target)
+        sweeps = self._build_source_delete_sweeps(source, target)
         parts.append(
             self._render(
                 "delete_mapping.sql.j2",
                 fn_name="SOURCE_DELETE_FN",
                 source_tables=src_table_names,
-                independence_checks=mvd_checks.get("mvd_checks", []),
-                full_independence_check=mvd_checks.get("full_independence_check"),
+                sweeps=sweeps,
+                sweep_source=ordered_source[0].name,
                 cleanup_tables=src_del_cleanup,
                 use_temp_join=False,
                 universal_columns=universal_columns,
@@ -542,79 +544,41 @@ class Generator:
 
         return "\n\n".join(parts)
 
-    def _build_source_delete_checks(self, source: Context, target: Context) -> dict:
-        """Build independence checks for source->target DELETE mapping."""
-        mvds = source.multivalued_dependencies
-        ordered_source = source.ordered_tables
-        ordered_target = target.ordered_tables
-        src_table = ordered_source[0]
-        src_table_names = [t.name for t in ordered_source]
-        src_name = src_table.name
-        all_attrs = src_table.attributes
-        pk = source.primary_keys.get(src_name, [])
+    def _build_source_delete_sweeps(
+        self, source: Context, target: Context
+    ) -> list[dict]:
+        """Build per-target orphan sweeps for the source->target DELETE mapping.
 
-        mvd_checks = []
-        for mvd in mvds:
-            lhs_attrs = list(mvd.attributes)[:-1]
-            det_attr = list(mvd.attributes)[-1]
+        A target row survives a source DELETE iff some remaining source row
+        still projects onto it: NULL-safe equality on every target attribute,
+        with the target's guard attributes non-NULL on the witness. Sweeping
+        every target table this way is order- and batch-independent, and it
+        never removes a row another source key still derives (the previous
+        NEW-keyed cascade did — see "DELETE independence generalization" in
+        docs/notes/open-problems.md).
 
-            # Find target table whose attrs contain the MVD determined attr + LHS
-            target_table = None
-            for t in ordered_target:
-                if det_attr in t.attributes and all(
-                    a in t.attributes for a in lhs_attrs
-                ):
-                    target_table = t
-                    break
+        Sweeps are emitted children-before-parents: ``ordered_target`` is
+        root-first (the order the JOIN reconstruction needs), so the FK-safe
+        DELETE order is its reverse.
+        """
+        src_table = source.ordered_tables[0]
+        src_attrs = set(src_table.attributes)
 
-            if target_table is None:
-                continue
-
-            target_pk = target.primary_keys.get(target_table.name, [])
-            lhs_match = " AND ".join(f"{a} = NEW.{a}" for a in lhs_attrs)
-            det_match = f"{det_attr} = NEW.{det_attr}"
-
-            mvd_checks.append(
-                {
-                    "source_table": src_name,
-                    "target_table": target_table.name,
-                    "target_pk": target_pk,
-                    "lhs_match": lhs_match,
-                    "det_match": det_match,
-                    "join_expr": " NATURAL LEFT OUTER JOIN ".join(
-                        f"{self.schema}._{n}_DELETE_JOIN" for n in src_table_names
-                    ),
-                }
+        sweeps = []
+        for t in reversed(target.ordered_tables):
+            missing = [a for a in t.attributes if a not in src_attrs]
+            if missing:
+                raise UnsupportedError(
+                    f"Target table {t.name} has attributes {missing} that the "
+                    f"source table {src_table.name} does not carry; the DELETE "
+                    "orphan sweep cannot build a witness query."
+                )
+            conditions = [f"s.{a} IS NOT DISTINCT FROM t.{a}" for a in t.attributes]
+            conditions += [f"s.{g} IS NOT NULL" for g in extract_table_guard_attrs(t)]
+            sweeps.append(
+                {"table": t.name, "witness_condition": " AND ".join(conditions)}
             )
-
-        # Full independence check: if no tuples remain with same PK, delete all
-        non_pk_attrs = [a for a in all_attrs if a not in pk]
-        lhs_match = " AND ".join(f"{a} = NEW.{a}" for a in pk)
-        all_match = (
-            lhs_match + " AND " + " AND ".join(f"{a} = NEW.{a}" for a in non_pk_attrs)
-        )
-
-        # Delete children before parents: ``ordered_target`` is root-first
-        # (the order the JOIN reconstruction needs), so the FK-safe DELETE
-        # order is its reverse. Deleting a parent first violates the child
-        # FKs (e.g. _personphone.ssn -> _person.ssn).
-        full_deletes = []
-        for t in reversed(ordered_target):
-            t_pk = target.primary_keys.get(t.name, [])
-            cond = " AND ".join(
-                f"{a} = NEW.{a}" for a in (t_pk if t_pk else t.attributes)
-            )
-            full_deletes.append({"table": t.name, "condition": cond})
-
-        return {
-            "mvd_checks": mvd_checks,
-            "full_independence_check": {
-                "source_table": src_name,
-                "lhs_match": lhs_match,
-                "all_match": all_match,
-                "deletes": full_deletes,
-            },
-        }
+        return sweeps
 
     def _build_target_delete_checks(self, source: Context) -> list[dict]:
         """Build independence checks for target->source DELETE mapping.
