@@ -10,19 +10,13 @@ from typing import Callable
 from rapt2.treebrd.node import SelectNode
 
 from .context import Context
+from .errors import UnsupportedError as UnsupportedError
 from .guard import (
     GuardHierarchy,
     build_cfd_where_branches,
     extract_defined_attrs,
 )
 from .table import Table
-
-
-class UnsupportedError(Exception):
-    """Raised when the generator encounters a constraint pattern it cannot compile."""
-
-    pass
-
 
 RenderFn = Callable[..., str]
 
@@ -239,7 +233,16 @@ def mvd_sql(context: Context, render: RenderFn) -> str:
 
 
 def inc_sql(context: Context, render: RenderFn) -> str:
-    """Generate trigger-based INC enforcement for intra-table inclusion dependencies."""
+    """Generate trigger-based INC enforcement for intra-table inclusion dependencies.
+
+    The self-reference exemption in the generated check compares the
+    referencing column against ``pk[0]`` — the *first* primary-key column —
+    which is the row identity both bundled examples use (example2 exercises
+    this with a composite PK whose first column is the entity key). A
+    composite PK whose first column is not the entity identity would exempt
+    the wrong comparison; that generalization is tracked in
+    docs/notes/open-problems.md ("Inclusion dependencies").
+    """
     parts = []
     idx = 0
     for inc in context.inclusion_subsumptions:

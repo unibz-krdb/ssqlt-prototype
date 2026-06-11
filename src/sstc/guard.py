@@ -16,6 +16,7 @@ from rapt2.treebrd.condition_node import (
 from rapt2.treebrd.node import SelectNode, UnaryNode
 
 from .definition import AttributeSchema
+from .errors import UnsupportedError
 from .table import Table
 
 
@@ -97,6 +98,21 @@ def build_guard_hierarchy(
     # Sort by cardinality ascending
     sorted_guards = sorted(guard_sets.items(), key=lambda x: len(x[0]))
 
+    # The cumulative levels built below are only meaningful when the guard
+    # sets form a chain under inclusion (each level adds attributes to the
+    # previous one). Independent guard groups form a lattice that linear
+    # levels cannot represent; compiling them anyway would produce wrong
+    # null-pattern WHERE clauses, so reject loudly instead.
+    prev: frozenset[str] = frozenset()
+    for guard_frozen, _ in sorted_guards:
+        if not guard_frozen >= prev:
+            raise UnsupportedError(
+                f"Non-chain guard hierarchy: guard sets {sorted(prev)} and "
+                f"{sorted(guard_frozen)} are not nested. Independent nullable "
+                "groups (a guard lattice) are not supported."
+            )
+        prev = guard_frozen
+
     # Build levels with cumulative not_null / null columns
     levels = []
     cumulative: set[str] = set()
@@ -163,13 +179,31 @@ def build_cfd_where_branches(
                 return i, group
         return -1, [attr]
 
+    # The branch construction below keys cross-level decisions off a single
+    # level-group, so every *nullable* LHS attribute must live in one group.
+    # Mandatory attributes are always defined — they cannot affect null
+    # patterns, so they are exempt from the check (and from the IS NULL
+    # branches below). A determinant whose nullable attributes span groups
+    # would silently get the wrong branches, so reject it.
+    mandatory = set(hierarchy.mandatory_cols)
+    lhs_groups = {find_group(a)[0] for a in lhs_attrs if a not in mandatory}
+    if len(lhs_groups) > 1:
+        raise UnsupportedError(
+            f"CFD determinant {lhs_attrs} spans multiple guard levels "
+            f"(groups {sorted(lhs_groups)}); branches cannot be derived "
+            "from a single level."
+        )
+
     rhs_idx, rhs_group = find_group(rhs_attrs[0])
-    lhs_idx, _ = find_group(lhs_attrs[0])
+    lhs_idx = lhs_groups.pop() if lhs_groups else -1
     cross_level = lhs_idx != rhs_idx
 
-    # Cross-level: LHS NULL -> no RHS-group attr can be NOT NULL
+    # Cross-level: LHS NULL -> no RHS-group attr can be NOT NULL. Mandatory
+    # LHS attributes are skipped: R2.<mandatory> IS NULL is unsatisfiable.
     if cross_level:
         for lhs_attr in lhs_attrs:
+            if lhs_attr in mandatory:
+                continue
             for rhs_attr in rhs_group:
                 branch = f"(R2.{lhs_attr} IS NULL AND R2.{rhs_attr} IS NOT NULL)"
                 if branch not in branches:

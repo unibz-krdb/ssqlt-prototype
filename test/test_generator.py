@@ -11,6 +11,7 @@ from sstc.guard import (
     GuardLevel,
     build_cfd_where_branches,
     build_containment_pruning,
+    build_guard_hierarchy,
     build_null_pattern_where,
 )
 
@@ -804,6 +805,97 @@ def test_build_target_delete_checks_multi_source_arm(tmp_path):
     # One check per dependent (non-main) source table, each with a dependent delete.
     assert len(checks) == len(src.tables) - 1
     assert all(c["dependent_deletes"] for c in checks)
+
+
+def _non_chain_target_ctx(tmp_path):
+    """A target Context whose guard sets {b} and {c} are incomparable."""
+    schema_path = tmp_path / "universal.json"
+    schema_path.write_text(
+        json.dumps(
+            [
+                {"name": "a", "data_type": "VARCHAR(100)", "is_nullable": False},
+                {"name": "b", "data_type": "VARCHAR(100)", "is_nullable": True},
+                {"name": "c", "data_type": "VARCHAR(100)", "is_nullable": True},
+            ]
+        )
+    )
+    ra_path = tmp_path / "target.txt"
+    ra_path.write_text(
+        "T1 := \\project_{a, b} \\select_{defined(b)} Universal;\n"
+        "pk_{a} T1;\n"
+        "T2 := \\project_{a, c} \\select_{defined(c)} Universal;\n"
+        "pk_{a} T2;\n"
+        "UniversalMapping := \\project_{a, b, c} (T1 \\natural_join T2);\n"
+    )
+    return Context.from_file(str(schema_path), str(ra_path), Direction.TARGET)
+
+
+def test_build_guard_hierarchy_rejects_non_chain(tmp_path):
+    """Incomparable guard sets (a lattice of independent nullable groups) must
+    fail loudly: the cumulative level construction silently mis-compiles them."""
+    tgt = _non_chain_target_ctx(tmp_path)
+    with pytest.raises(UnsupportedError, match="Non-chain guard hierarchy"):
+        build_guard_hierarchy(
+            target_tables=tgt.tables,
+            universal_schema=tgt.universal_schema,
+            source_primary_keys={},
+        )
+
+
+def test_cfd_branches_reject_lhs_spanning_levels():
+    """A CFD determinant whose attributes sit in different guard level-groups
+    must be rejected; branch derivation keys off a single level."""
+    h = GuardHierarchy(
+        mandatory_cols=["a"],
+        nullable_cols=["b", "c"],
+        levels=[
+            GuardLevel(
+                guard_attrs=set(), tables=[], not_null_cols=[], null_cols=["b", "c"]
+            ),
+            GuardLevel(
+                guard_attrs={"b"}, tables=[], not_null_cols=["b"], null_cols=["c"]
+            ),
+            GuardLevel(
+                guard_attrs={"b", "c"},
+                tables=[],
+                not_null_cols=["b", "c"],
+                null_cols=[],
+            ),
+        ],
+        source_pk=["a"],
+    )
+    with pytest.raises(UnsupportedError, match="spans multiple guard levels"):
+        build_cfd_where_branches(["b", "c"], ["c"], ["b", "c"], h)
+
+
+def test_cfd_branches_allow_mandatory_in_lhs():
+    """A mandatory attribute in the CFD determinant is always defined, so it
+    must neither trip the spanning check nor produce a dead IS NULL branch."""
+    h = GuardHierarchy(
+        mandatory_cols=["a"],
+        nullable_cols=["b", "c"],
+        levels=[
+            GuardLevel(
+                guard_attrs=set(), tables=[], not_null_cols=[], null_cols=["b", "c"]
+            ),
+            GuardLevel(
+                guard_attrs={"b"}, tables=[], not_null_cols=["b"], null_cols=["c"]
+            ),
+            GuardLevel(
+                guard_attrs={"b", "c"},
+                tables=[],
+                not_null_cols=["b", "c"],
+                null_cols=[],
+            ),
+        ],
+        source_pk=["a"],
+    )
+    branches = build_cfd_where_branches(["a", "b"], ["c"], ["b", "c"], h)
+
+    # Cross-level branch comes from the nullable determinant attribute only.
+    assert "(R2.b IS NULL AND R2.c IS NOT NULL)" in branches
+    # No dead branch for the mandatory attribute (R2.a can never be NULL).
+    assert not any("R2.a IS NULL" in br for br in branches)
 
 
 def _mismatched_attr_ctxs(tmp_path):
