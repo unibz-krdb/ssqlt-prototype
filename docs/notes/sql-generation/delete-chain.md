@@ -90,6 +90,17 @@ The correct behavior: only delete from PERSON, PERSON_PHONE, and PERSON_EMAIL (t
 
 ## The independence check
 
+> **Implementation note (2026-06-11).** The compiler now realises the
+> source→target direction of this check as a per-target **orphan sweep**
+> (`generator._build_source_delete_sweeps`): after the source delete, each
+> target table is swept for rows with no remaining witness in the source
+> table (NULL-safe equality on every target attribute, witness constrained by
+> the table's guard), children before parents. The sweep generalizes the
+> EXCEPT-based check below — in particular it preserves rows that a
+> *different* source key still derives, which the NEW-keyed cascade did not.
+> The target→source direction still follows the temp-table form documented
+> here.
+
 For each target table `Ti` containing attributes `ATTi` through `ATTj`, the check determines whether other tuples in the universal join still reference Ti's values. The check compares all tuples sharing the *other* attributes (everything except Ti's columns) against the deleted tuples:
 
 ### Generic pattern
@@ -192,11 +203,11 @@ END IF;
 
 ## Multi-table DELETE transactions
 
-When deleting a tuple that spans multiple tables on the same schema side, the `_LOOP` table must be pre-seeded with a count equal to the number of DELETE operations. This tells the wait mechanism how many delete triggers to expect before proceeding.
+When deleting a tuple that spans multiple tables on the same schema side, the `_LOOP` table must be pre-seeded with a count equal to the number of DELETE operations. This tells the wait mechanism how many delete triggers to expect before proceeding. The compiled script provides `seed_loop(N)` (N = number of statements) so clients do not hand-compute the seed:
 
 ```sql
 BEGIN;
-INSERT INTO transducer._loop VALUES (4);
+SELECT transducer.seed_loop(3);   -- equivalent to INSERT INTO transducer._loop VALUES (4)
 DELETE FROM transducer._PERSON_PHONE WHERE ssn = 'ssn3';
 DELETE FROM transducer._PERSON_EMAIL WHERE ssn = 'ssn3';
 DELETE FROM transducer._PERSON WHERE ssn = 'ssn3';

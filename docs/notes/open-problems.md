@@ -44,9 +44,19 @@ The MVD constraint check query assumes all multivalued dependencies in a table s
 
 This is a problem for the compiler because MVD enforcement is generated automatically from the parsed constraint declarations. If the compiler encounters a table with non-shared-LHS MVDs, it will emit incorrect violation check SQL that rejects valid insertions. The compiler either needs to detect this case and refuse it, or generate a different form of check query.
 
-No solution exists yet. The current implementation only handles the shared-LHS case and does not detect or warn about the non-shared-LHS situation.
+Current status: `constraints.mvd_sql` detects the non-shared-LHS case and raises `UnsupportedError` instead of emitting a wrong check. Generating a correct check for differing determinant sets remains open.
 
-Source: `notes/constraint_definition.sql` lines 210-216
+Source: `notes/constraint_definition.sql` lines 210-216, `src/sstc/constraints.py` (`mvd_sql`)
+
+## Non-chain guard hierarchies
+
+**Severity:** Correctness
+
+`guard.build_guard_hierarchy` organises the distinct target-table guard sets into linear specialization *levels* with cumulative NOT-NULL column sets. That construction is only meaningful when the guard sets form a chain under inclusion (each level adds attributes to the previous one, e.g. ∅ ⊂ {empid, hdate} ⊂ {empid, hdate, dept, manager}). Two *incomparable* guard sets — independent optional attribute groups, fully legal under the SQL NULL decomposition theory — form a lattice that linear levels cannot represent. The cumulative construction would force them into a fictitious nesting order, producing wrong null-pattern `WHERE` clauses, wrong containment pruning, and wrong CFD branches, all silently.
+
+Resolved-by-rejection (Tier A, 2026-06-11): `build_guard_hierarchy` validates the chain property and raises `UnsupportedError` for non-chain inputs; `build_cfd_where_branches` likewise rejects CFD determinants spanning multiple level-groups (it derives branches from `lhs_attrs[0]`'s level only). *Supporting* guard lattices — enumerating one null-pattern branch per lattice element and pruning along the partial order instead of adjacent levels — remains open.
+
+Source: `src/sstc/guard.py` (`build_guard_hierarchy`, `build_cfd_where_branches`)
 
 ## Composite PK foreign keys
 
@@ -113,11 +123,11 @@ Source: `docs/notes/sql-generation/mapping-functions.md` §Tuple containment res
 
 When a DELETE occurs in a source table, the transducer must determine which target table tuples are no longer needed. The current approach uses an EXCEPT query to check whether other source tuples *with the same primary key* still reference the same attribute values. If no such tuple remains, the full cascade in `SOURCE_DELETE_FN` deletes from every target table by matching `NEW`. The per-target MVD checks (phone/email) generalize this correctly, but the full cascade does **not** ask whether a *different* primary key still shares a value.
 
-This is observable in the bundled example, not just in hypothetical complex topologies: two employees in the same department share one `_deptmanager` row (the CFD `dept → manager` forces a single manager per department). Deleting one employee removes that shared row via `DELETE FROM _deptmanager WHERE dept = NEW.dept`, breaking the remaining employee. A general fix needs the independence check to cover every target table whose values can be shared across source keys, not only the MVD-determined ones.
+This was observable in the bundled example, not just in hypothetical complex topologies: two employees in the same department share one `_deptmanager` row (the CFD `dept → manager` forces a single manager per department). Deleting one employee removed that shared row via `DELETE FROM _deptmanager WHERE dept = NEW.dept`, breaking the remaining employee.
 
-Current status: demonstrated by a **strict-xfail** integration test, `test_source_delete_preserves_shared_dept_manager` in `test/test_integration.py` (runs for both examples). Remove the `xfail` marker when the independence check generalizes. A separate, now-fixed bug in this path — the full cascade deleted parent tables before their children, violating FKs — is recorded in `CHANGELOG.md`.
+Resolved (Tier A, 2026-06-11): `SOURCE_DELETE_FN` now performs a per-target-table **orphan sweep** instead of the NEW-keyed cascade: a target row is deleted iff no remaining source row still projects onto it (NULL-safe equality on every target attribute, witness constrained by the table's guard). The sweep runs children-before-parents, is batch- and order-independent, and subsumes the old per-MVD checks (which themselves over-deleted when another source row still carried the same attribute pair). The former strict-xfail test `test_source_delete_preserves_shared_dept_manager` now passes for both examples. A separate, earlier-fixed bug in this path — the full cascade deleted parent tables before their children, violating FKs — is recorded in `CHANGELOG.md`.
 
-Source: `notes/updates_and_more.sql`, `src/sstc/generator.py` (`_build_source_delete_checks`)
+Source: `notes/updates_and_more.sql`, `src/sstc/generator.py` (`_build_source_delete_sweeps`), `src/sstc/templates/delete_mapping.sql.j2`
 
 ## Inclusion dependencies
 
@@ -158,11 +168,25 @@ This pushes a compiler-level concern — synchronization of the trigger chain �
 
 Mitigation directions:
 
-- Generate a helper function per schema (e.g., `transducer.multi_delete(count INT)`) that wraps the pre-seed and delete sequence, so clients call a single function rather than hand-managing `_LOOP`.
+- Generate a helper function per schema that wraps the pre-seed, so clients call a single function rather than hand-managing `_LOOP`.
 - Replace the count-based wait mechanism with a different synchronization primitive — session-scoped GUC variables, advisory locks, or `ON COMMIT` triggers — that does not require the client to know how many triggers will fire.
-- At a minimum, document the contract prominently (not buried mid-doc) and generate a compile-time constant the client can reference (e.g., `transducer.delete_trigger_count` as a function returning the per-schema value).
 
-Source: `docs/notes/sql-generation/delete-chain.md` lines 194-220
+Partially resolved (Tier A, 2026-06-11): the preamble now emits `seed_loop(change_count INT)`; clients call `SELECT <schema>.seed_loop(N)` before the first of `N` target-side statements, and the `N+1` arithmetic is a compiler detail again (`test/helpers.py::seed_target_loop` delegates to it). The client must still know `N` — eliminating the count-based wait mechanism entirely remains open (second mitigation direction above).
+
+Source: `docs/notes/sql-generation/delete-chain.md` lines 194-220, `src/sstc/templates/preamble.sql.j2`
+
+## Concurrent writers corrupt `_loop` and bypass trigger checks
+
+**Severity:** Correctness
+
+The generated SQL assumes **one writer at a time**. Two failure modes exist under concurrent write transactions:
+
+1. **`_loop` races.** The cycle-detection ledger is a single shared table: the sign of a row encodes propagation direction and the row count drives the wait gate. Two concurrent transactions interleave their markers — each sees the other's rows in its count, so mapping functions fire early, late, or never, and capture triggers mistake a genuine change for a sync echo (or vice versa). `docs/notes/architecture/concurrency.md` analyses the failure modes in detail.
+2. **Read-then-decide constraint triggers.** FD/CFD, MVD, and INC enforcement are trigger queries against a snapshot. Under READ COMMITTED (or any snapshot isolation), two concurrent inserts can each observe no violation and jointly commit one — unlike native PK/FK constraints, which lock. This is inherent to trigger-enforced constraints without explicit locking or `SERIALIZABLE`.
+
+Operating contract until resolved: serialize write transactions (single writer, or `SERIALIZABLE` isolation with retry, or an advisory lock taken at transaction start). Mitigation directions for `_loop` specifically: transaction-local state (temp tables `ON COMMIT DROP`, session GUCs, or `pg_trigger_depth()`-based suppression) would remove the shared-table race entirely.
+
+Source: `docs/notes/architecture/concurrency.md`, `src/sstc/templates/preamble.sql.j2` (`_loop`), `src/sstc/templates/capture_function.sql.j2`
 
 ## Join layer optimization
 

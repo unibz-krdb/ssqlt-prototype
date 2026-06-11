@@ -143,7 +143,7 @@ Generator.compile() ──▶ SQL string
                                SOURCE_DELETE_FN, TARGET_DELETE_FN)
 ```
 
-`Generator` owns the Jinja2 environment and the `_render()` method. Each pipeline method either renders templates directly or delegates to `constraints.py` / `guard.py` for the data, then renders. The seven sections are joined with `"\n\n"` into the final SQL string.
+`Generator` owns the Jinja2 environment and the `_render()` method. Each pipeline method either renders templates directly or delegates to `constraints.py` / `guard.py` for the data, then renders. The nine sections are joined with `"\n\n"` into the final SQL string.
 
 ---
 
@@ -220,16 +220,16 @@ class GuardHierarchy:
     source_pk: list[str]         # Source primary key columns
 ```
 
-The specialization hierarchy orders target tables by how many nullable columns they require to be non-NULL. Level 0 has no guard (empty `guard_attrs`); each successive level adds more NOT NULL requirements. This hierarchy is used to generate CFD enforcement branches, containment pruning, and null-pattern WHERE clauses.
+The specialization hierarchy orders target tables by how many nullable columns they require to be non-NULL. Level 0 has no guard (empty `guard_attrs`); each successive level adds more NOT NULL requirements. This hierarchy is used to generate CFD enforcement branches, containment pruning, and null-pattern WHERE clauses. The construction requires the guard sets to form a **chain** under inclusion; incomparable guard sets (independent nullable groups) are rejected with `UnsupportedError` rather than forced into a fictitious nesting order.
 
-### `UnsupportedError` (`constraints.py`)
+### `UnsupportedError` (`errors.py`, re-exported by `constraints.py`)
 
 ```python
 class UnsupportedError(Exception):
     """Raised when the generator encounters a constraint pattern it cannot compile."""
 ```
 
-Raised for input patterns the compiler cannot yet handle: multiple source tables, non-shared-LHS MVDs, multi-column intra-table INCs.
+Defined in the leaf module `errors.py` so that `guard.py` (also a leaf) can raise it without importing `constraints.py`. Raised for input patterns the compiler cannot yet handle: multiple source tables, non-shared-LHS MVDs, multi-column intra-table INCs, non-chain guard hierarchies, and CFD determinants spanning guard levels.
 
 ---
 
@@ -336,21 +336,25 @@ Jinja2 is fully contained within `generator.py`. No other module imports or refe
 
 ## Compilation Pipeline Sections
 
-The seven sections produced by `Generator.compile()`, in order:
+The nine sections produced by `Generator.compile()`, in order:
 
 ### 1. Preamble
 
-Drops and recreates the `transducer` schema. Creates the `_loop` table used for cycle detection (see [loop-prevention.md](notes/architecture/loop-prevention.md)).
+Drops and recreates the `transducer` schema. Creates the `_loop` table used for cycle detection (see [loop-prevention.md](notes/architecture/loop-prevention.md)) and the `seed_loop(N)` client helper for target-side transactions.
 
 ### 2. Base Tables
 
 `CREATE TABLE` for every table in both source and target contexts. Column types and nullability come from the universal schema JSON. Primary keys are derived from `pk_{}` declarations in the RA.
 
-### 3. Foreign Keys
+### 3. Reject Updates
 
-`ALTER TABLE ADD FOREIGN KEY` statements derived from inclusion dependencies (`inc=_{}` and `inc⊆_{}`). An inclusion whose referenced columns match the referenced table's primary key becomes a foreign key constraint.
+One `BEFORE UPDATE` trigger per base table raising an exception: UPDATE propagation is unsupported by design (use `DELETE` + `INSERT`).
 
-### 4. Constraints
+### 4. Inter-Table Inclusion
+
+`ALTER TABLE ADD FOREIGN KEY` statements derived from inclusion dependencies (`inc=_{}` and `inc⊆_{}`). An inclusion whose referenced columns match the referenced table's primary key becomes a foreign key constraint; otherwise a `DEFERRABLE INITIALLY DEFERRED` constraint trigger enforces it.
+
+### 5. Constraints
 
 Trigger-based enforcement functions for three constraint types:
 
@@ -360,14 +364,14 @@ Trigger-based enforcement functions for three constraint types:
 
 See [notes/constraints/](notes/constraints/) for the theory behind each constraint type.
 
-### 5. Tracking
+### 6. Tracking
 
 For each base table, per direction, per event (INSERT/DELETE):
 - A tracking table (shadow clone of the base table's columns)
 - A capture function (copies NEW/OLD row into the tracking table, guarded by the `_loop` table)
 - An AFTER trigger wiring the capture function to the base table
 
-### 6. Join Staging
+### 7. Join Staging
 
 For each base table, per direction, per event:
 - A JOIN staging table (tracks the natural-join result)
@@ -376,7 +380,7 @@ For each base table, per direction, per event:
 
 See [notes/architecture/layers.md](notes/architecture/layers.md) for why the join layer exists (the partial updates problem).
 
-### 7. Mapping
+### 8. Mapping
 
 Four bidirectional mapping functions:
 
@@ -384,10 +388,14 @@ Four bidirectional mapping functions:
 |---|---|---|---|
 | `SOURCE_INSERT_FN` | Source JOIN staging | Target base tables | Direct projection (single source table) |
 | `TARGET_INSERT_FN` | Target JOIN staging | Source base tables | Containment pruning, null-pattern WHERE |
-| `SOURCE_DELETE_FN` | Source JOIN staging | Target base tables | MVD independence checks |
+| `SOURCE_DELETE_FN` | Source JOIN staging | Target base tables | Orphan sweep per target table (NULL-safe derivability check against the source) |
 | `TARGET_DELETE_FN` | Target JOIN staging | Source base tables | Full tuple independence checks |
 
 Each function is wired to the JOIN staging tables via mapping triggers. After executing, each function truncates its tracking and staging tables.
+
+### 9. Sync Verification
+
+`check_sync()` — an instance-level probe returning the symmetric difference between the source table and the `NATURAL LEFT OUTER JOIN` reconstruction of the target tables (in `UniversalMapping` order). An empty result means both databases currently encode the same instance; each diff row is labelled `missing-in-target` or `missing-in-source`. Set operations compare NULLs as equal, so partially-NULL URA tuples diff correctly. This is a necessary condition for losslessness, not a schema-level proof.
 
 ---
 

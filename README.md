@@ -9,10 +9,17 @@ keeps the two databases synchronised after every `INSERT`/`DELETE`.
 It is the executable companion to *"Understanding the Semantic SQL Transducer"*
 (Abgrall & Franconi, 2024 — [arXiv:2407.07502](https://arxiv.org/abs/2407.07502),
 included under [`docs/papers/`](docs/papers/)). The prototype realises the
-paper's trigger architecture; it does **not** derive the lossless decomposition
-for you — you supply the already-decomposed target context and the universal
-mapping as input. See [`THEORY-PARITY.md`](THEORY-PARITY.md)
-for exactly which parts of the theory are implemented.
+paper's trigger architecture **for the URA-projection fragment** of the
+theory: both contexts must be projections (optionally guarded by
+`defined(...)`) of a single universal relation. It does **not** derive the
+lossless decomposition for you — you supply the already-decomposed target
+context and the universal mapping as input — and the paper's general mapping
+framework (arbitrary relational-algebra views, CARM/OID generation, value-based
+horizontal decomposition) is not expressible in the input language; notably,
+the paper's own worked example (Figures 4–6) lies outside this envelope, and
+the bundled PERSON example is its OID-free analogue. See
+[`THEORY-PARITY.md`](THEORY-PARITY.md) for exactly which parts of the theory
+are implemented.
 
 ## Requirements
 
@@ -47,15 +54,29 @@ uv run sstc test/inputs/example1/universal.json \
 ```
 
 Pass `-c`/`--comments` to annotate the generated SQL with explanatory comments:
-section banners for each of the eight pipeline layers, a header above every
+section banners for each of the nine pipeline layers, a header above every
 table/function/trigger, and inline notes on the trickier logic (loop guard,
-natural-join reconstruction, independence checks). Comments are purely
+natural-join reconstruction, delete orphan sweeps). Comments are purely
 additive — the default output is byte-for-byte identical to before — and inert,
 so a commented script installs and behaves exactly like an uncommented one.
 
 Apply `output.sql` to a PostgreSQL database to install the transducer. (The
 generated insert/delete functions reference a `_loop` cycle-detection table,
 which the script creates for you.)
+
+Source-side changes propagate statement by statement with no ceremony. For a
+**target-side** transaction touching N target tables, call the generated
+`seed_loop` helper first so propagation fires only after all N statements
+have been captured:
+
+```sql
+BEGIN;
+SELECT transducer.seed_loop(3);
+DELETE FROM transducer._personphone WHERE ssn = 'x';
+DELETE FROM transducer._personemail WHERE ssn = 'x';
+DELETE FROM transducer._person      WHERE ssn = 'x';
+COMMIT;
+```
 
 ## Input format
 
@@ -128,6 +149,9 @@ For each context the compiler emits, in dependency order:
    `_loop` cycle-detection table)
 6. The four bidirectional mapping functions — `SOURCE_INSERT_FN`,
    `TARGET_INSERT_FN`, `SOURCE_DELETE_FN`, `TARGET_DELETE_FN` — and their triggers
+7. `check_sync()` — an instance-level sync probe returning the symmetric
+   difference between the source table and the reconstruction from the target
+   tables (`SELECT * FROM transducer.check_sync()`; empty result = in sync)
 
 See [`FEATURES.md`](FEATURES.md) for the complete capability reference.
 
@@ -152,10 +176,19 @@ organised around:
 
 - **Exactly one source table** — multi-source schemas are rejected.
 - **`INSERT` and `DELETE` propagate**; `UPDATE` is rejected by design.
-- Single-column inclusion dependencies only; non-shared-LHS MVDs are rejected.
+- **One writer at a time** — concurrent write transactions corrupt the `_loop`
+  ledger and can race the trigger-based constraint checks. Serialize writes
+  (single session, an advisory lock, or `SERIALIZABLE` isolation with retry).
+- Single-column inclusion dependencies only; non-shared-LHS MVDs and
+  non-chain guard hierarchies (independent nullable groups) are rejected.
 - Join order is taken from `UniversalMapping`, not derived from the FK graph.
 
-Known correctness gaps (e.g. `DELETE` independence for shared rows) are tracked
+Losslessness of the supplied decomposition is **trusted, not verified**: the
+generated `check_sync()` probes whether the two databases currently encode the
+same instance (a necessary condition), but no schema-level losslessness check
+exists.
+
+Known correctness gaps (e.g. the concurrent-writer races above) are tracked
 in [`docs/notes/open-problems.md`](docs/notes/open-problems.md). Architecture and
 design notes live under [`docs/notes/`](docs/notes/); contributor-facing
 conventions are in [`CLAUDE.md`](CLAUDE.md).

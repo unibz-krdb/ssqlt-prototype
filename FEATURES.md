@@ -5,10 +5,14 @@ to *run* it see [`README.md`](README.md), for how features map to the source
 paper see [`THEORY-PARITY.md`](THEORY-PARITY.md), and for
 known gaps see [`docs/notes/open-problems.md`](docs/notes/open-problems.md).
 
-> **Supported envelope.** Every feature below is solid within the shape the two
-> bundled examples share: a **single source table**, single-column inclusion
-> dependencies, shared-LHS multivalued dependencies, and `INSERT`/`DELETE`
-> propagation. Outside that envelope the compiler either raises
+> **Supported envelope.** SSTC compiles the **URA-projection fragment** of the
+> transducer theory: both contexts are projections (optionally guarded by
+> `defined(...)`) of one universal relation. Every feature below is solid
+> within the shape the two bundled examples share: a **single source table**,
+> single-column inclusion dependencies, shared-LHS multivalued dependencies,
+> and `INSERT`/`DELETE` propagation. The paper's general mappings, CARM/OIDs,
+> and value-based horizontal decomposition are not expressible — including the
+> paper's own worked example. Outside the envelope the compiler either raises
 > `UnsupportedError` or hits a catalogued open problem — see the end of this
 > document.
 
@@ -31,11 +35,11 @@ known gaps see [`docs/notes/open-problems.md`](docs/notes/open-problems.md).
 
 ## Compilation pipeline
 
-`Generator.compile()` emits eight sections in dependency order:
+`Generator.compile()` emits nine sections in dependency order:
 
 | # | Section | Method | Output |
 |---|---------|--------|--------|
-| 1 | Schema preamble | `_preamble` | `DROP`/`CREATE SCHEMA`; the `_loop` cycle-detection table |
+| 1 | Schema preamble | `_preamble` | `DROP`/`CREATE SCHEMA`; the `_loop` cycle-detection table; the `seed_loop(N)` client helper |
 | 2 | Base tables | `_base_tables` | `CREATE TABLE` per source/target table with PKs + nullability |
 | 3 | Update rejection | `_reject_updates` | one `BEFORE UPDATE` raise-trigger per base table |
 | 4 | Inter-table INC | `_inter_table_inc` | native FK, or deferred constraint trigger when an FK is impossible |
@@ -43,6 +47,7 @@ known gaps see [`docs/notes/open-problems.md`](docs/notes/open-problems.md).
 | 6 | Change tracking | `_tracking` | `_INSERT`/`_DELETE` shadow tables + capture triggers |
 | 7 | Join staging | `_join` | `_INSERT_JOIN`/`_DELETE_JOIN` tables + join functions (write `_loop`) |
 | 8 | Mapping | `_mapping` | the four bidirectional mapping functions + triggers |
+| 9 | Sync verification | `_verification` | `check_sync()` — symmetric difference between source and target reconstruction |
 
 ## Constraint generation
 
@@ -56,7 +61,8 @@ known gaps see [`docs/notes/open-problems.md`](docs/notes/open-problems.md).
 | **CFD** (guarded FD) | `BEFORE INSERT` with exhaustive OR-branch WHERE from the guard hierarchy | `constraints.fd_sql` + `guard.build_cfd_where_branches` |
 | **MVD** (shared-LHS) | `BEFORE INSERT` check **and** `AFTER INSERT` grounding of missing complementary tuples | `constraints.mvd_sql` |
 
-Multi-column INCs and non-shared-LHS MVDs are explicitly rejected with
+Multi-column INCs, non-shared-LHS MVDs, non-chain guard hierarchies, and CFD
+determinants spanning guard levels are explicitly rejected with
 `UnsupportedError` rather than mis-compiled.
 
 ## Guard hierarchy & NULL handling
@@ -65,7 +71,9 @@ For Universal-Relation-Assumption schemas where source rows are partially NULL
 (`guard.py`):
 
 - **`build_guard_hierarchy`** — partitions universal columns into specialization
-  levels from the `defined(...)` predicates on target tables.
+  levels from the `defined(...)` predicates on target tables. Guard sets must
+  form a chain by inclusion; incomparable sets (independent nullable groups)
+  raise `UnsupportedError` instead of silently linearizing.
 - **`build_cfd_where_branches`** — exhaustive null-pattern branches for CFD checks.
 - **`build_containment_pruning`** — drops dominated (more-NULL) tuples in the
   target→source insert mapping so they don't violate the source PK.
@@ -85,10 +93,26 @@ triggers, no external runtime. The four mapping functions are `SOURCE_INSERT_FN`
 | Operation | Status | Loop protocol |
 |---|---|---|
 | **INSERT source → target** | works, integration-tested | self-firing |
-| **INSERT target → source** | works, integration-tested | client seeds `_loop` with `N+1` (N target inserts) |
+| **INSERT target → source** | works, integration-tested | client calls `seed_loop(N)` first (N target inserts) |
 | **DELETE source → target** | works, integration-tested | self-firing |
-| **DELETE target → source** | works, integration-tested | client seeds `_loop` with `N+1` (N target deletes) |
+| **DELETE target → source** | works, integration-tested | client calls `seed_loop(N)` first (N target deletes) |
 | **UPDATE** | rejected by design | use `DELETE` + `INSERT` |
+
+Source→target DELETEs propagate via a per-target **orphan sweep**: a target
+row is deleted iff no remaining source row still projects onto it (NULL-safe,
+guard-aware, children before parents), so rows shared with another source key
+— e.g. a department/manager pair two employees reference — survive.
+
+## Sync verification
+
+The compiled script ends with `check_sync()`: `SELECT * FROM
+transducer.check_sync()` returns the symmetric difference between the source
+table and the NATURAL-LEFT-OUTER-JOIN reconstruction of the target tables,
+each row labelled `missing-in-target` or `missing-in-source`. An empty result
+means both databases currently encode the same instance. It is an
+**instance-level probe** — a necessary condition for losslessness, not a
+schema-level proof. Integration tests use it after every propagation pattern,
+including a seeded randomized insert/delete round-trip.
 
 **Loop prevention** uses the `_loop` table: the sign of a row encodes the
 propagation direction and the row count drives a wait so a one-directional
@@ -117,11 +141,14 @@ operational-parity table of
 
 - Multiple source tables; automatic FK-graph join ordering; disconnected-component
   partitioning.
-- Multi-column inclusion dependencies; non-shared-LHS MVDs; conditional join
-  dependencies (CJD).
+- Multi-column inclusion dependencies; non-shared-LHS MVDs; non-chain guard
+  hierarchies (independent nullable groups); conditional join dependencies (CJD).
 - `UPDATE` propagation.
-- General DELETE independence for rows shared across source keys (a strict-xfail
-  test documents the current over-deletion).
-- Concurrency / `_loop` races; the multi-table-DELETE `_loop` pre-seed contract.
-- Deriving the lossless decomposition itself, and verifying losslessness — SSTC
-  executes a decomposition you supply; it does not synthesise or check one.
+- Concurrent writers — the contract is **one writer at a time**: `_loop` is a
+  shared ledger and the trigger-based constraint checks race under snapshot
+  isolation. The count-based `_loop` wait also remains: `seed_loop(N)` hides
+  the arithmetic, but clients still supply N for target-side transactions.
+- Deriving the lossless decomposition itself, and verifying losslessness at
+  the schema level — SSTC executes a decomposition you supply; `check_sync()`
+  verifies the *current instances* agree, which is necessary but not
+  sufficient.
