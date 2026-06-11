@@ -1,6 +1,13 @@
+{% if comments %}
+-- CFD check on _{{ table_name }}: the conditional form of {{ lhs_attrs | join(", ") }} ->
+-- {{ rhs_attrs | join(", ") }}. where_branches enumerate every null-pattern that violates it.
+{% endif %}
 CREATE OR REPLACE FUNCTION {{ schema }}.check_{{ table_name }}_cfd_{{ fd_index }}_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+{% if comments %}
+    -- Reject when any branch matches an existing, conflicting row.
+{% endif %}
     IF EXISTS (SELECT *
         FROM {{ schema }}._{{ table_name }} AS R1,
         (SELECT {{ new_cols }}) AS R2
@@ -13,6 +20,9 @@ BEGIN
 END;
 $$;
 
+{% if comments %}
+-- Enforce the CFD on every row inserted into _{{ table_name }}.
+{% endif %}
 CREATE TRIGGER {{ table_name }}_cfd_{{ fd_index }}_trigger
 BEFORE INSERT ON {{ schema }}._{{ table_name }}
 FOR EACH ROW

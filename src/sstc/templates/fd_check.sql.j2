@@ -1,6 +1,13 @@
+{% if comments %}
+-- FD check on _{{ table_name }}: rejects an insert whose LHS ({{ lhs_attrs | join(", ") }})
+-- matches an existing row but whose RHS ({{ rhs_attrs | join(", ") }}) disagrees.
+{% endif %}
 CREATE OR REPLACE FUNCTION {{ schema }}.check_{{ table_name }}_fd_{{ fd_index }}_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+{% if comments %}
+    -- Violation = same LHS, conflicting RHS already present in the table.
+{% endif %}
 {% if guard_attrs %}
     IF {% for attr in guard_attrs %}NEW.{{ attr }} IS NOT NULL{% if not loop.last %} AND {% endif %}{% endfor %} THEN
 {% endif %}
@@ -20,6 +27,9 @@ BEGIN
 END;
 $$;
 
+{% if comments %}
+-- Enforce the FD on every row inserted into _{{ table_name }}.
+{% endif %}
 CREATE TRIGGER {{ table_name }}_fd_{{ fd_index }}_trigger
 BEFORE INSERT ON {{ schema }}._{{ table_name }}
 FOR EACH ROW

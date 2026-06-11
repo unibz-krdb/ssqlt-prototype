@@ -14,8 +14,10 @@ known gaps see [`docs/notes/open-problems.md`](docs/notes/open-problems.md).
 
 ## Input
 
-- **CLI**: `sstc <universal.json> <source.txt> <target.txt> [-o out.sql]`
-  (`src/sstc/__main__.py`), emitting a single PostgreSQL script.
+- **CLI**: `sstc <universal.json> <source.txt> <target.txt> [-o out.sql] [-c/--comments]`
+  (`src/sstc/__main__.py`), emitting a single PostgreSQL script. `--comments`
+  annotates the output with section banners, per-object headers, and inline
+  notes (purely additive; default output is unchanged).
 - **Universal schema** from a JSON array of `{name, data_type, is_nullable}`.
 - **Source and target contexts** written in relational algebra, parsed with
   **RAPT2** (`Context.from_file`).

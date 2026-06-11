@@ -1,6 +1,14 @@
+{% if comments %}
+-- {{ fn_name }}: project staged universal tuples into the opposite context.
+-- Fires once the JOIN stage is fully populated; clears tracking + _loop after.
+{% endif %}
 CREATE OR REPLACE FUNCTION {{ schema }}.{{ fn_name }}()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+{% if comments %}
+    -- Loop guard: run only when the _loop marker magnitude equals the marker
+    -- count, i.e. every join-stage trigger has fired for this one sync.
+{% endif %}
     IF NOT EXISTS (SELECT * FROM {{ schema }}._loop,
         (SELECT COUNT(*) AS rc_value FROM {{ schema }}._loop) AS row_count
         WHERE ABS(loop_start) = row_count.rc_value) THEN
@@ -8,6 +16,9 @@ BEGIN
     END IF;
 
 {% if use_temp_join %}
+{% if comments %}
+    -- Reassemble distinct universal tuples from the JOIN stages.
+{% endif %}
     DROP TABLE IF EXISTS temp_table_join;
     CREATE TEMPORARY TABLE temp_table_join(
 {% for col in universal_columns %}
@@ -40,15 +51,25 @@ BEGIN
 {% endfor %}
 {% endif %}
 
+{% if comments %}
+    -- Insert each projected relation; ON CONFLICT DO NOTHING keeps it idempotent.
+{% endif %}
 {% for tbl in target_tables %}
     INSERT INTO {{ schema }}._{{ tbl.name }} (SELECT {{ tbl.attrs | join(', ') }} FROM temp_table_join)
         ON CONFLICT{% if tbl.pk %} ({{ tbl.pk | join(', ') }}){% endif %} DO NOTHING;
 {% endfor %}
 {% if loop_value %}
+{% if comments %}
+    -- Stamp _loop so the opposite-direction capture treats these as echoes.
+{% endif %}
     INSERT INTO {{ schema }}._loop VALUES ({{ loop_value }});
 {% endif %}
 
 {% else %}
+{% if comments %}
+    -- Direct path (no temp join): project straight from the JOIN stage, with a
+    -- guard so a target table is filled only when its guard attributes are set.
+{% endif %}
 {% for tbl in target_tables %}
 {% if tbl.guard_check %}
     IF EXISTS (SELECT * FROM {{ schema }}._{{ source_tables[0] }}_{{ suffix }}_JOIN
@@ -67,6 +88,9 @@ BEGIN
 {% endfor %}
 {% endif %}
 
+{% if comments %}
+    -- Clear the tracking + join stages and the loop ledger for the next change.
+{% endif %}
 {% for tbl in cleanup_tables %}
     DELETE FROM {{ schema }}._{{ tbl }};
 {% endfor %}

@@ -21,6 +21,10 @@ class Transducer:
             )
         )
 
-    def compile(self) -> str:
-        """Compile the transducer context into PostgreSQL SQL."""
-        return Generator(self.ctx).compile()
+    def compile(self, comments: bool = False) -> str:
+        """Compile the transducer context into PostgreSQL SQL.
+
+        When ``comments`` is set, the generated script carries explanatory
+        comments (section banners, per-object headers, inline notes).
+        """
+        return Generator(self.ctx, comments=comments).compile()

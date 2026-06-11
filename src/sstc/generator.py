@@ -6,6 +6,7 @@ constraint enforcement (MVDs, CFDs, INCs), insert/delete tracking,
 join staging, and bidirectional mapping functions with triggers.
 """
 
+import textwrap
 from pathlib import Path
 
 import jinja2
@@ -29,6 +30,11 @@ TARGET_LOOP_CHECK = 1
 SOURCE_LOOP_VALUE = 1
 TARGET_LOOP_VALUE = -1
 
+# Width of the wrapped prose inside a section banner (excludes the "--  " prefix).
+_BANNER_WIDTH = 60
+# Horizontal rule that opens and closes every section banner.
+_BANNER_RULE = "-- " + "=" * _BANNER_WIDTH
+
 
 class Generator:
     """Compiles a TransducerContext into a complete PostgreSQL SQL script.
@@ -40,9 +46,15 @@ class Generator:
     (source/target x insert/delete) with their triggers.
     """
 
-    def __init__(self, ctx: TransducerContext, schema: str = "transducer"):
+    def __init__(
+        self,
+        ctx: TransducerContext,
+        schema: str = "transducer",
+        comments: bool = False,
+    ):
         self.ctx = ctx
         self.schema = schema
+        self.comments = comments
         self.env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(Path(__file__).parent / "templates"),
             keep_trailing_newline=True,
@@ -75,21 +87,94 @@ class Generator:
                 f"Expected exactly 1 source table, got {len(self.ctx.source.tables)}. "
                 "Multi-source-table transducers are not yet supported."
             )
+        # Each section pairs a banner title + prose with its generated SQL. The
+        # banners are emitted only when ``comments`` is set; numbering follows
+        # the fixed pipeline position so empty sections leave gaps rather than
+        # renumbering the rest.
         sections = [
-            self._preamble(),
-            self._base_tables(),
-            self._reject_updates(),
-            self._inter_table_inc(),
-            self._constraints(),
-            self._tracking(),
-            self._join(),
-            self._mapping(),
+            (
+                "SCHEMA PREAMBLE",
+                "Drop and recreate the transducer schema, then create _loop, "
+                "the cycle-detection table that breaks the source<->target "
+                "feedback loop. Applying this script destroys any existing "
+                "transducer schema.",
+                self._preamble(),
+            ),
+            (
+                "BASE TABLES",
+                "One CREATE TABLE per source and target relation. Primary keys "
+                "and NOT NULL come from the universal schema; every object is "
+                "_-prefixed inside the transducer schema.",
+                self._base_tables(),
+            ),
+            (
+                "REJECT UPDATES",
+                "UPDATE propagation is unimplemented. One BEFORE UPDATE trigger "
+                "per base table raises an exception so updates fail loudly "
+                "instead of bypassing the mapping functions; use DELETE + INSERT.",
+                self._reject_updates(),
+            ),
+            (
+                "INTER-TABLE INCLUSION",
+                "Inclusion dependencies that cross tables: a native FOREIGN KEY "
+                "where the referenced columns are the referenced table's primary "
+                "key, otherwise a DEFERRABLE constraint trigger that tolerates "
+                "mid-cascade violations.",
+                self._inter_table_inc(),
+            ),
+            (
+                "CONSTRAINTS",
+                "Intra-table enforcement: FD/CFD checks, MVD check plus grounding "
+                "(re-inserting complementary tuples for 4NF), and intra-table "
+                "inclusion checks. All run as BEFORE/AFTER INSERT triggers.",
+                self._constraints(),
+            ),
+            (
+                "CHANGE TRACKING",
+                "Per table: a shadow _INSERT/_DELETE table plus AFTER "
+                "INSERT/DELETE capture triggers. Each change is staged for "
+                "propagation unless the loop guard shows a sync is already in "
+                "flight.",
+                self._tracking(),
+            ),
+            (
+                "JOIN STAGING",
+                "Natural-join the tracked per-table changes back into universal "
+                "tuples in _..._JOIN tables, writing to _loop for cycle "
+                "detection. This bridges per-table deltas to the universal "
+                "relation the mapping reads.",
+                self._join(),
+            ),
+            (
+                "BIDIRECTIONAL MAPPING",
+                "The four mapping functions (SOURCE/TARGET x INSERT/DELETE). Each "
+                "reads the JOIN staging, projects universal tuples into the "
+                "opposite context, and clears tracking state. Inserts use "
+                "containment pruning and null-pattern filtering; deletes use MVD "
+                "independence checks.",
+                self._mapping(),
+            ),
         ]
-        return "\n\n".join(s for s in sections if s)
+        rendered = []
+        for num, (title, description, sql) in enumerate(sections, 1):
+            if not sql:
+                continue
+            if self.comments:
+                rendered.append(f"{self._banner(num, title, description)}\n\n{sql}")
+            else:
+                rendered.append(sql)
+        return "\n\n".join(rendered)
 
     def _render(self, template_name: str, **kwargs) -> str:
         template = self.env.get_template(template_name)
-        return template.render(schema=self.schema, **kwargs)
+        return template.render(schema=self.schema, comments=self.comments, **kwargs)
+
+    def _banner(self, num: int, title: str, description: str) -> str:
+        """Render a section banner: a ruled box with a numbered title and prose."""
+        lines = [_BANNER_RULE, f"--  SECTION {num}: {title}"]
+        lines += [f"--  {line}" for line in textwrap.wrap(description, _BANNER_WIDTH)]
+        lines.append(_BANNER_RULE)
+        return "\n".join(lines)
 
     def _preamble(self) -> str:
         return self._render("preamble.sql.j2")
@@ -156,7 +241,11 @@ class Generator:
 
     def _inter_table_inc(self) -> str:
         return inter_table_inc(
-            self.ctx.source, self.ctx.target, self._render, self.schema
+            self.ctx.source,
+            self.ctx.target,
+            self._render,
+            self.schema,
+            comments=self.comments,
         )
 
     def _constraints(self) -> str:

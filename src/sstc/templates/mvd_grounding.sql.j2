@@ -1,6 +1,13 @@
+{% if comments %}
+-- MVD grounding on _{{ table_name }}: the AFTER-INSERT complement to the check.
+-- It inserts the complementary tuples the MVD forces, restoring 4NF.
+{% endif %}
 CREATE OR REPLACE FUNCTION {{ schema }}.check_{{ table_name }}_mvd_grounding_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+{% if comments %}
+    -- If the MVD implies tuples that are missing, materialise them.
+{% endif %}
     IF EXISTS (
 {% for union_select in union_selects %}
         SELECT {{ union_select.cols }}
@@ -31,6 +38,9 @@ BEGIN
 END;
 $$;
 
+{% if comments %}
+-- Run grounding after each insert into _{{ table_name }}.
+{% endif %}
 CREATE TRIGGER {{ table_name }}_mvd_grounding_trigger
 AFTER INSERT ON {{ schema }}._{{ table_name }}
 FOR EACH ROW

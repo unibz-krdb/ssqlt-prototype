@@ -1,9 +1,21 @@
+{% if comments %}
+-- Capture ({{ direction }}): fires on every {{ suffix }} to _{{ table_name }} and stages the
+-- affected row in _{{ table_name }}_{{ suffix }} for the join layer to pick up,
+-- unless the loop guard shows this change is itself the echo of a sync.
+{% endif %}
 CREATE OR REPLACE FUNCTION {{ schema }}.{{ direction }}_{{ table_name }}_{{ suffix }}_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+{% if comments %}
+    -- loop guard: a marker of {{ loop_check }} means a {{ direction }}-side sync is already
+    -- in flight, so skip capture and let the in-progress cascade unwind.
+{% endif %}
     IF EXISTS (SELECT * FROM {{ schema }}._loop WHERE loop_start = {{ loop_check }}) THEN
         RETURN NULL;
     ELSE
+{% if comments %}
+        -- genuine change: stage the row so the JOIN layer can rebuild tuples.
+{% endif %}
         INSERT INTO {{ schema }}._{{ table_name }}_{{ suffix }} VALUES({{ row_values }});
         RETURN {{ return_value }};
     END IF;

@@ -1,4 +1,13 @@
+{% if comments %}
+-- Reset the target schema. CASCADE drops every object inside it, so applying
+-- this script discards any prior transducer state in {{ schema }}.
+{% endif %}
 DROP SCHEMA IF EXISTS {{ schema }} CASCADE;
 CREATE SCHEMA {{ schema }};
 
+{% if comments %}
+-- _loop is the cycle-detection ledger. Capture and mapping functions push a
+-- signed marker into it and refuse to act while it is set, which is what stops
+-- a source change from echoing back through the target (and vice versa) forever.
+{% endif %}
 CREATE TABLE {{ schema }}._loop (loop_start INT NOT NULL);

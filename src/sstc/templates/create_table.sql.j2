@@ -1,3 +1,7 @@
+{% if comments %}
+-- Base table _{{ table_name }}: one relation of the decomposition. Column types,
+-- nullability and the primary key are projected from the universal schema.
+{% endif %}
 CREATE TABLE {{ schema }}._{{ table_name }} (
 {% for col in columns %}
     {{ col.name }} {{ col.data_type }}{% if not col.is_nullable %} NOT NULL{% endif %}{% if not loop.last or pk_columns %},{% endif %}

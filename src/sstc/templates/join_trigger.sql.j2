@@ -1,3 +1,6 @@
+{% if comments %}
+-- Fire the join function when a captured {{ suffix }} row lands in the stage.
+{% endif %}
 CREATE TRIGGER {{ direction }}_{{ table_name }}_{{ suffix }}_JOIN_trigger
 AFTER INSERT ON {{ schema }}._{{ table_name }}_{{ suffix }}
 FOR EACH ROW

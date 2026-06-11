@@ -1,6 +1,13 @@
+{% if comments %}
+-- {{ fn_name }}: propagate a DELETE into the opposite context, but only where no
+-- surviving tuple still depends on the removed data (independence checks below).
+{% endif %}
 CREATE OR REPLACE FUNCTION {{ schema }}.{{ fn_name }}()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+{% if comments %}
+    -- Loop guard: act only on the firing that completes this sync.
+{% endif %}
     IF NOT EXISTS (SELECT * FROM {{ schema }}._loop,
         (SELECT COUNT(*) AS rc_value FROM {{ schema }}._loop) AS row_count
         WHERE {% if use_abs %}ABS(loop_start){% else %}loop_start{% endif %} = row_count.rc_value) THEN
@@ -8,6 +15,9 @@ BEGIN
     END IF;
 
 {% if use_temp_join %}
+{% if comments %}
+    -- Reassemble the universal tuples being deleted from the JOIN stages.
+{% endif %}
     DROP TABLE IF EXISTS temp_table_join;
     CREATE TEMPORARY TABLE temp_table_join(
 {% for col in universal_columns %}
@@ -25,6 +35,10 @@ BEGIN
         WHERE {{ where_not_null }}
     );
 
+{% if comments %}
+    -- Delete the main relation, then each dependent relation only if no other
+    -- surviving universal tuple still requires it (the EXCEPT independence test).
+{% endif %}
 {% for check in independence_checks %}
     DELETE FROM {{ schema }}._{{ check.main_table }} WHERE ({{ check.pk | join(', ') }}) IN (SELECT {{ check.pk | join(', ') }} FROM temp_table_join);
 {% if check.dependent_deletes %}
@@ -40,6 +54,10 @@ BEGIN
 {% endfor %}
 
 {% else %}
+{% if comments %}
+    -- Per-MVD independence: drop the determined-attribute table only when the
+    -- LHS retains no other value (otherwise the remaining value still needs it).
+{% endif %}
 {% for check in independence_checks %}
     IF EXISTS (SELECT * FROM {{ schema }}._{{ check.source_table }} WHERE {{ check.lhs_match }}
         EXCEPT (SELECT * FROM {{ schema }}._{{ check.source_table }} WHERE {{ check.lhs_match }} AND {{ check.det_match }})) THEN
@@ -53,6 +71,10 @@ BEGIN
 {% endfor %}
 
 {% if full_independence_check %}
+{% if comments %}
+    -- Full independence: if the exact tuple is gone entirely, remove it from
+    -- every target relation (children before parents to respect the FKs).
+{% endif %}
     IF NOT EXISTS (SELECT * FROM {{ schema }}._{{ full_independence_check.source_table }} WHERE {{ full_independence_check.lhs_match }}
         EXCEPT (SELECT * FROM {{ schema }}._{{ full_independence_check.source_table }} WHERE {{ full_independence_check.all_match }})) THEN
 {% for del in full_independence_check.deletes %}
@@ -62,6 +84,9 @@ BEGIN
 {% endif %}
 {% endif %}
 
+{% if comments %}
+    -- Clear the tracking + join stages and the loop ledger for the next change.
+{% endif %}
 {% for tbl in cleanup_tables %}
     DELETE FROM {{ schema }}._{{ tbl }};
 {% endfor %}

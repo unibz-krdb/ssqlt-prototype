@@ -103,7 +103,11 @@ def _inc_direction(inc, *, equivalence: bool) -> tuple[str, list[str], str, list
 
 
 def inter_table_inc(
-    source: Context, target: Context, render: RenderFn, schema: str
+    source: Context,
+    target: Context,
+    render: RenderFn,
+    schema: str,
+    comments: bool = False,
 ) -> str:
     """Generate inter-table inclusion enforcement: FK where possible, trigger otherwise.
 
@@ -112,6 +116,10 @@ def inter_table_inc(
     INITIALLY DEFERRED constraint trigger enforces the inclusion by subquery. Intra-table subsumptions are
     handled by ``inc_sql``. Equivalence INCs are enforced in only one
     direction at the compiled-SQL layer (see ``_inc_direction`` docstring).
+
+    When ``comments`` is set, each native FK gets a one-line header explaining
+    the inclusion it enforces. (The trigger branch carries its own comments via
+    the ``inc_inter_check`` template.)
     """
     parts: list[str] = []
     idx = 0
@@ -120,6 +128,12 @@ def inter_table_inc(
         nonlocal idx
         fk = emit_fk(rfing, rfing_cols, rfed, rfed_cols, pks, schema)
         if fk:
+            if comments:
+                fk = (
+                    f"-- Inter-table inclusion as a native FK: "
+                    f"_{rfing}({', '.join(rfing_cols)}) must reference "
+                    f"_{rfed}({', '.join(rfed_cols)})\n{fk}"
+                )
             parts.append(fk)
             return
         if len(rfing_cols) != 1 or len(rfed_cols) != 1:

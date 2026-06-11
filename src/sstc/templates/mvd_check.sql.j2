@@ -1,6 +1,13 @@
+{% if comments %}
+-- MVD check on _{{ table_name }}: a new tuple must not imply a cross-product
+-- combination that is absent from the table (4NF would require it present).
+{% endif %}
 CREATE OR REPLACE FUNCTION {{ schema }}.check_{{ table_name }}_mvd_check_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+{% if comments %}
+    -- EXCEPT surfaces an implied tuple that does not yet exist -> reject.
+{% endif %}
     IF EXISTS (SELECT DISTINCT {{ select_cols }}
         FROM {{ schema }}._{{ table_name }} AS r1,
         (SELECT {{ new_cols }}) AS r2
@@ -17,6 +24,9 @@ BEGIN
 END;
 $$;
 
+{% if comments %}
+-- Enforce the MVD on every row inserted into _{{ table_name }}.
+{% endif %}
 CREATE TRIGGER {{ table_name }}_mvd_check_trigger
 BEFORE INSERT ON {{ schema }}._{{ table_name }}
 FOR EACH ROW

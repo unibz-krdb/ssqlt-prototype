@@ -37,7 +37,7 @@ The compiler is exposed as the `sstc` command (see `[project.scripts]` in
 file:
 
 ```shell
-sstc <universal.json> <source.txt> <target.txt> [-o output.sql]
+sstc <universal.json> <source.txt> <target.txt> [-o output.sql] [-c|--comments]
 
 # e.g. compile the bundled example
 uv run sstc test/inputs/example1/universal.json \
@@ -45,6 +45,13 @@ uv run sstc test/inputs/example1/universal.json \
             test/inputs/example1/target.txt \
             -o output.sql
 ```
+
+Pass `-c`/`--comments` to annotate the generated SQL with explanatory comments:
+section banners for each of the eight pipeline layers, a header above every
+table/function/trigger, and inline notes on the trickier logic (loop guard,
+natural-join reconstruction, independence checks). Comments are purely
+additive — the default output is byte-for-byte identical to before — and inert,
+so a commented script installs and behaves exactly like an uncommented one.
 
 Apply `output.sql` to a PostgreSQL database to install the transducer. (The
 generated insert/delete functions reference a `_loop` cycle-detection table,

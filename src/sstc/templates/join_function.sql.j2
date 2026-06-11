@@ -1,6 +1,14 @@
+{% if comments %}
+-- Join ({{ direction }}): once captured {{ suffix }} rows land in _{{ table_name }}_{{ suffix }},
+-- reassemble full universal tuples by natural-joining this delta against the
+-- sibling tables, then fan the result out into every _..._{{ suffix }}_JOIN stage.
+{% endif %}
 CREATE OR REPLACE FUNCTION {{ schema }}.{{ direction }}_{{ table_name }}_{{ suffix }}_JOIN_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+{% if comments %}
+    -- Scratch table holding the reconstructed universal tuples.
+{% endif %}
     DROP TABLE IF EXISTS temp_table;
     CREATE TEMPORARY TABLE temp_table(
 {% for col in universal_columns %}
@@ -9,6 +17,10 @@ BEGIN
 {% endfor %}
     );
 
+{% if comments %}
+    -- Natural-join the captured delta with the sibling tables to recover the
+    -- universal attributes that _{{ table_name }} alone does not carry.
+{% endif %}
     INSERT INTO temp_table (
         SELECT {{ universal_col_names | join(', ') }}
         FROM {{ schema }}._{{ table_name }}_{{ suffix }}
@@ -19,6 +31,9 @@ BEGIN
 
 {% for tbl in all_tables %}
 {% if loop.last %}
+{% if comments %}
+    -- Stamp the loop ledger ({{ loop_value }}) so the mapping fires exactly once.
+{% endif %}
     INSERT INTO {{ schema }}._loop VALUES ({{ loop_value }});
 {% endif %}
     INSERT INTO {{ schema }}._{{ tbl.name }}_{{ suffix }}_JOIN (SELECT {{ tbl.attrs | join(', ') }} FROM temp_table);

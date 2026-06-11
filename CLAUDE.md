@@ -22,7 +22,7 @@ uv run ruff check .                                  # Lint
 uv run ruff format .                                 # Format
 ```
 
-Compile an example via the `sstc` CLI: `uv run sstc <universal.json> <source.txt> <target.txt> [-o out.sql]`.
+Compile an example via the `sstc` CLI: `uv run sstc <universal.json> <source.txt> <target.txt> [-o out.sql] [-c/--comments]`. The `--comments` flag annotates the generated SQL with section banners, per-object headers, and inline notes; it is purely additive (default output is unchanged) and gated by `Generator(ctx, comments=...)`.
 
 ## Architecture
 
@@ -43,7 +43,7 @@ A deeper, narrative version of this section (module map in dependency order, dat
 - **`transducer_context.py`** — `TransducerContext` holds source and target `Context` instances, created via `from_files()`.
 - **`transducer.py`** — `Transducer` entry point; `compile()` delegates to `Generator`.
 - **`__init__.py`** — Public API exports: `Context`, `Direction`, `Transducer`, `TransducerContext`.
-- **`__main__.py`** — CLI entry point. Accepts universal schema, source, and target paths plus `-o/--output` (default stdout). Mapped to `sstc` command via `pyproject.toml` scripts.
+- **`__main__.py`** — CLI entry point. Accepts universal schema, source, and target paths plus `-o/--output` (default stdout) and `-c/--comments` (annotate output). Mapped to `sstc` command via `pyproject.toml` scripts.
 
 ### Compilation pipeline
 

@@ -1,3 +1,7 @@
+{% if comments %}
+-- Reject UPDATE on _{{ table_name }}: UPDATE has no mapping, so this BEFORE
+-- UPDATE trigger raises instead of silently bypassing the transducer.
+{% endif %}
 CREATE OR REPLACE FUNCTION {{ schema }}.{{ table_name }}_REJECT_UPDATE()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -5,6 +9,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+{% if comments %}
+-- Fire the guard before any row-level UPDATE reaches _{{ table_name }}.
+{% endif %}
 CREATE TRIGGER {{ table_name }}_REJECT_UPDATE
 BEFORE UPDATE ON {{ schema }}._{{ table_name }}
 FOR EACH ROW EXECUTE FUNCTION {{ schema }}.{{ table_name }}_REJECT_UPDATE();

@@ -13,11 +13,17 @@ def main():
     parser.add_argument("source", help="Path to source RA file")
     parser.add_argument("target", help="Path to target RA file")
     parser.add_argument("--output", "-o", help="Output SQL file (default: stdout)")
+    parser.add_argument(
+        "--comments",
+        "-c",
+        action="store_true",
+        help="Annotate the generated SQL with explanatory comments",
+    )
     args = parser.parse_args()
 
     try:
         ctx = TransducerContext.from_files(args.universal, args.source, args.target)
-        sql = Generator(ctx).compile()
+        sql = Generator(ctx, comments=args.comments).compile()
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

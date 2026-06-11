@@ -1,6 +1,14 @@
+{% if comments %}
+-- Inter-table INC trigger for _{{ referencing_table }}: enforces
+-- _{{ referencing_table }}.{{ referencing_col }} ⊆ _{{ referenced_table }}.{{ referenced_col }}
+-- when a native FK is not possible (the referenced column is not a PK).
+{% endif %}
 CREATE OR REPLACE FUNCTION {{ schema }}.{{ referencing_table }}_{{ idx }}_INC_INTER_CHECK()
 RETURNS TRIGGER AS $$
 BEGIN
+{% if comments %}
+    -- A non-NULL referencing value with no match in the referenced table fails.
+{% endif %}
     IF NEW.{{ referencing_col }} IS NOT NULL AND NOT EXISTS (
         SELECT 1 FROM {{ schema }}._{{ referenced_table }}
         WHERE {{ referenced_col }} = NEW.{{ referencing_col }}
@@ -13,6 +21,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+{% if comments %}
+-- DEFERRABLE INITIALLY DEFERRED: checked at COMMIT, so the multi-statement
+-- mapping cascade can pass through intermediate violations within the txn.
+{% endif %}
 CREATE CONSTRAINT TRIGGER {{ referencing_table }}_{{ idx }}_INC_INTER_CHECK
 AFTER INSERT ON {{ schema }}._{{ referencing_table }}
 DEFERRABLE INITIALLY DEFERRED

@@ -1,12 +1,25 @@
+{% if comments %}
+-- Intra-table INC on _{{ table_name }}: NEW.{{ referencing_col }} must already appear in
+-- _{{ referenced_table }}.{{ referenced_col }} (NULL and self-reference are exempt).
+{% endif %}
 CREATE OR REPLACE FUNCTION {{ schema }}.check_{{ table_name }}_inc_{{ inc_index }}_fn()
 RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
 BEGIN
+{% if comments %}
+    -- NULL references nothing.
+{% endif %}
     IF (NEW.{{ referencing_col }} IS NULL) THEN
         RETURN NEW;
     END IF;
+{% if comments %}
+    -- A row may reference its own key.
+{% endif %}
     IF (NEW.{{ referencing_col }} = NEW.{{ self_ref_col }}) THEN
         RETURN NEW;
     END IF;
+{% if comments %}
+    -- Otherwise the value must already exist in the referenced column.
+{% endif %}
     IF EXISTS (SELECT DISTINCT NEW.{{ referencing_col }}
         FROM {{ schema }}._{{ table_name }}
         EXCEPT (
@@ -23,6 +36,9 @@ BEGIN
 END;
 $$;
 
+{% if comments %}
+-- Enforce the inclusion on every row inserted into _{{ table_name }}.
+{% endif %}
 CREATE TRIGGER {{ table_name }}_inc_{{ inc_index }}_trigger
 BEFORE INSERT ON {{ schema }}._{{ table_name }}
 FOR EACH ROW
