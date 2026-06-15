@@ -89,7 +89,7 @@ A deeper, narrative version of this section (module map in dependency order, dat
 - **Universal schema**: JSON array of `{name, data_type, is_nullable}` objects
 - **Context definitions**: Relational algebra text files using RAPT2 syntax with operators like `\project_{}`, `\select_{}`, `\natural_join`, the guard predicate `defined(attr)`, and constraint declarations (`pk_{}`, `fd_{}`, `mvd_{}`, `inc=_{}`, `inc⊆_{}`). Each file must end with a reserved `UniversalMapping` assignment.
 
-See `test/inputs/example1/` and `test/inputs/example2/` for complete working examples (two variants of the PERSON URA example).
+See `test/inputs/example1/` and `test/inputs/example2/` for complete working examples (two variants of the PERSON URA example); `PERSON_EXAMPLE.md` is a researcher-facing walkthrough of that example.
 
 ## Reference materials
 
@@ -98,6 +98,7 @@ Top-level docs (kept current; read these first):
 - **`README.md`** — install, `sstc` CLI usage, the three-file input format, and scope/limitations
 - **`FEATURES.md`** — capability reference: the 9-section pipeline table and the supported envelope
 - **`THEORY-PARITY.md`** — how `src/sstc/` maps to the paper; an at-a-glance parity table of what's implemented vs. scoped out
+- **`PERSON_EXAMPLE.md`** — researcher-facing walkthrough of the canonical PERSON URA example: universal relation, source constraints, the lossless 8-table decomposition, guard hierarchy, the worked instance, and the bidirectional sync contract
 - **`docs/architecture.md`** — the compiler's internal software architecture (module map, data flow, patterns)
 - **`CHANGELOG.md`** — Keep a Changelog format; record behavior changes under the `[Unreleased]` section as part of the change
 

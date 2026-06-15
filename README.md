@@ -81,7 +81,10 @@ COMMIT;
 ## Input format
 
 Each compilation takes three files. A complete, working set lives in
-[`test/inputs/example1/`](test/inputs/example1/).
+[`test/inputs/example1/`](test/inputs/example1/); for a narrative walkthrough of
+that example — the universal relation, the lossless decomposition, the guard
+hierarchy, and the bidirectional sync contract — see
+[`PERSON_EXAMPLE.md`](PERSON_EXAMPLE.md).
 
 ### 1. Universal schema — JSON
 
