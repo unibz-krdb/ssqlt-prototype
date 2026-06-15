@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`PERSON_EXAMPLE.md`** — a researcher-facing companion to the canonical PERSON
+  URA example: provenance and its role as the OID-free analogue of the paper's
+  Figures 4–6, the universal relation, the source constraints and the lossless
+  8-table target decomposition, the guard hierarchy, a worked instance, the
+  bidirectional sync contract, the two variants, and the scope boundary. Links
+  out to `docs/notes/example/PIPELINE.md`, `THEORY-PARITY.md`, and `FEATURES.md`.
 - Ninth pipeline section, **Sync verification**: the compiled script now ends
   with `check_sync()`, returning the symmetric difference between the source
   table and the NATURAL-LEFT-OUTER-JOIN reconstruction of the target tables
