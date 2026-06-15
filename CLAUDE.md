@@ -99,6 +99,7 @@ Top-level docs (kept current; read these first):
 - **`FEATURES.md`** — capability reference: the 9-section pipeline table and the supported envelope
 - **`THEORY-PARITY.md`** — how `src/sstc/` maps to the paper; an at-a-glance parity table of what's implemented vs. scoped out
 - **`docs/architecture.md`** — the compiler's internal software architecture (module map, data flow, patterns)
+- **`CHANGELOG.md`** — Keep a Changelog format; record behavior changes under the `[Unreleased]` section as part of the change
 
 Design/theory notes (`docs/notes/`):
 

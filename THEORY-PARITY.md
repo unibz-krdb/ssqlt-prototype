@@ -2,7 +2,7 @@
 
 This document records how closely the SSTC implementation in `src/sstc/` matches the theoretical design in `docs/notes/`. It complements `docs/notes/open-problems.md` by giving an at-a-glance parity table and by flagging gaps that are not yet catalogued there.
 
-Last reviewed: 2026-06-11 (Tier A correctness fixes + verification pass: DELETE orphan sweep, non-chain guard rejection, `seed_loop` helper, concurrency catalogued, `check_sync()` emitted, URA-fragment positioning stated; Tier 2 shipped 2026-04-17).
+Last reviewed: 2026-06-11.
 
 ## Summary
 
@@ -54,7 +54,7 @@ The `_LOOP` dual-role mechanism from `docs/notes/architecture/timing-and-orderin
 | Automatic NATURAL JOIN ordering | acknowledged open problem | none; joins follow RA declaration order |
 | Connected-component partitioning for join layer | acknowledged open problem | none; single full join |
 | `_LOOP` pre-seeding for multi-table DELETE | documented client contract | `seed_loop(N)` helper emitted in the preamble; clients no longer hand-compute the seed |
-| `universal_mapping` RA expression | central in theory — defines the universal-to-context mapping | consumed for join ordering and projection via `universal_mapping.extract_join_order`; `Context.from_file` validates the mapping tables match declared relations. Deeper join-tree consumption (disconnected components, multi-source, FK-graph-derived ordering) is Tier 3 |
+| `universal_mapping` RA expression | central in theory — defines the universal-to-context mapping | consumed for join ordering and projection via `universal_mapping.extract_join_order`; `Context.from_file` validates the mapping tables match declared relations. Deeper join-tree consumption (disconnected components, multi-source, FK-graph-derived ordering) is not yet implemented |
 | Losslessness guarantee | the core theorem — `(C_S ∪ M_{S→T}) ≡ (C_T ∪ M_{T→S})` | trusted at the schema level (no chase/equivalence check); `check_sync()` (section 9) verifies the *instances* currently agree — necessary, not sufficient |
 
 ## Terminology that does map to code
@@ -75,28 +75,6 @@ One item is documented in prose but not yet in `docs/notes/open-problems.md` as 
 1. **Multi-source rejection.** Hard-coded in `Generator.compile()`; the theory does not obviously restrict source schemas to a single table, so the restriction's rationale should be made explicit.
 
 The operating contract for writes is **one writer at a time** — concurrent write transactions corrupt `_loop` state and can jointly bypass the trigger-based constraint checks. This is now a formal catalogue entry ("Concurrent writers corrupt `_loop` and bypass trigger checks" in `docs/notes/open-problems.md`); README states the contract.
-
-### Closed in the verification pass (2026-06-11)
-
-- **Losslessness entirely unverified** — partially closed: the compiled script now ends with `check_sync()`, an instance-level probe (symmetric difference between source and target reconstruction). Schema-level verification (chase-based) remains open.
-- **URA-fragment positioning unstated** — the audit found no document said the paper's own worked example is inexpressible; README, FEATURES, CLAUDE.md, and this file now state the fragment explicitly.
-
-### Closed in Tier A (2026-06-11)
-
-- **DELETE independence over-deletion** — resolved: `SOURCE_DELETE_FN` performs a per-target orphan sweep (a target row survives while any remaining source row still projects onto it), replacing the NEW-keyed cascade that removed rows shared across source keys. The strict-xfail test now passes; see `generator._build_source_delete_sweeps`.
-- **Non-chain guard lattices silently mis-compiled** — resolved by rejection: `build_guard_hierarchy` validates the chain property; `build_cfd_where_branches` rejects determinants spanning level-groups. Lattice *support* remains open.
-- **Concurrency uncatalogued** — the missing open-problems entry now exists; the single-writer contract is stated in README and FEATURES.
-- **`_LOOP` pre-seed contract** — wrapped: the preamble emits `seed_loop(N)`; the `N+1` arithmetic is no longer client knowledge. Removing the count-wait mechanism entirely remains open.
-
-### Closed in Tier 1 (2026-04-17)
-
-- **UPDATE silent no-op** — resolved: per-table `BEFORE UPDATE` trigger emits `RAISE EXCEPTION`. See `templates/reject_update.sql.j2` and the UPDATE row of the operational parity table.
-- **Inter-table INC (refs ≠ PK) silent skip** — resolved for single-column: `AFTER INSERT DEFERRABLE INITIALLY DEFERRED` constraint trigger (`templates/inc_inter_check.sql.j2`). Multi-column case remains `Rejected` (Tier 3).
-- **`universal_mapping` parsed but unread** — tracked as a formal entry in `docs/notes/open-problems.md`; consumption followed in Tier 2.
-
-### Closed in Tier 2 (2026-04-17)
-
-- **`universal_mapping` consumed for join ordering** — `src/sstc/universal_mapping.py` extracts projection attributes and a left-to-right base-table sequence from the `AssignNode`. `Context.universal_mapping_join_order` surfaces that sequence; `Generator._join`, `_mapping`, and `_build_*_delete_checks` iterate in mapping order instead of declaration order. `Context.from_file` raises when the mapping tables diverge from the declared relations. For the two reference examples the compiled SQL is byte-unchanged; the behaviour is now guaranteed by construction.
 
 ## How to use this document
 

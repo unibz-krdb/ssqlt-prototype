@@ -104,7 +104,7 @@ are declared with dedicated operators. Both files must end with a reserved
 `UniversalMapping` assignment that defines the context-to-universal mapping (and
 the join order used to reconstruct full tuples).
 
-A single-table **source** (`source.txt`):
+A single-table **source** (`source.txt`, abridged):
 
 ```
 Person_Source := \project_{ssn, empid, name, hdate, phone, email, dept, manager} Universal;

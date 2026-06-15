@@ -120,9 +120,10 @@ propagation does not re-trigger back across the bridge.
 
 ## Quality & tooling
 
-- **Architecture**: `guard.py` (leaf) ← `constraints.py` ← `generator.py`
-  orchestrator; Jinja2 templates; constraint functions take a `RenderFn`
-  callback to decouple logic from rendering.
+- **Architecture**: `generator.py` (orchestrator) builds on both `constraints.py`
+  and `guard.py`, and `constraints.py` itself builds on `guard.py`; Jinja2
+  templates; constraint functions take a `RenderFn` callback to decouple logic
+  from rendering.
 - **Golden-file tests** — byte-exact full-compile output for both examples
   (`test/golden/`), regenerable with `--update-golden`.
 - **Integration tests** — compile, install on a throwaway PostgreSQL container
